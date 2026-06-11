@@ -31,7 +31,9 @@ object SupabaseModule {
             supabaseKey = Constants.SUPABASE_ANON_KEY
         ) {
             install(Postgrest)
-            install(Auth)
+            install(Auth) {
+                autoLoadFromStorage = false
+            }
             install(Storage)
             install(Functions)
             install(Realtime)
