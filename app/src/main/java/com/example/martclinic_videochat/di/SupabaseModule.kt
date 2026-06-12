@@ -32,7 +32,9 @@ object SupabaseModule {
         ) {
             install(Postgrest)
             install(Auth) {
-                autoLoadFromStorage = false
+                autoLoadFromStorage = true
+                scheme = "martclinic"
+                host = "login-callback"
             }
             install(Storage)
             install(Functions)

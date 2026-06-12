@@ -15,16 +15,34 @@ import com.example.martclinic_videochat.presentation.ui.MainScreen
 import com.example.martclinic_videochat.ui.theme.MartclinicvideochatTheme
 import dagger.hilt.android.AndroidEntryPoint
 
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.handleDeeplinks
+import javax.inject.Inject
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var supabaseClient: SupabaseClient
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Handle incoming deep links (e.g. from Kakao/Google redirect)
+        supabaseClient.handleDeeplinks(intent)
+        
         enableEdgeToEdge()
         setContent {
             MartclinicvideochatTheme {
                 MainScreen()
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        supabaseClient.handleDeeplinks(intent)
     }
 }
 

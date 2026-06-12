@@ -164,6 +164,7 @@ class PrescriptionViewModelTest {
     class FakePatientRepository : PatientRepository {
         var firstPatient: Patient? = null
         var patientById: Patient? = null
+        var createPatientResult = true
 
         override suspend fun getFirstPatient(): Patient? {
             return firstPatient
@@ -172,6 +173,11 @@ class PrescriptionViewModelTest {
         override suspend fun getPatientById(id: String): Patient? {
             return patientById
         }
+
+        override suspend fun createPatient(patient: Patient): Boolean {
+            firstPatient = patient
+            return createPatientResult
+        }
     }
 
     class FakePharmacyRepository : PharmacyRepository {
@@ -179,6 +185,14 @@ class PrescriptionViewModelTest {
 
         override suspend fun getAllPharmacies(): List<Pharmacy> {
             return pharmacies
+        }
+
+        override suspend fun getPharmaciesByPatient(patientId: String): List<Pharmacy> {
+            return pharmacies.filter { it.patient_id == patientId }
+        }
+
+        override suspend fun getDefaultPharmacy(patientId: String): Pharmacy? {
+            return pharmacies.firstOrNull { it.patient_id == patientId && it.is_default }
         }
 
         override suspend fun getPharmacyById(id: String): Pharmacy? {

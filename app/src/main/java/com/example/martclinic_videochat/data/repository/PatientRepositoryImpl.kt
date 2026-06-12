@@ -42,4 +42,14 @@ class PatientRepositoryImpl @Inject constructor(
             null
         }
     }
+
+    override suspend fun createPatient(patient: Patient): Boolean {
+        return try {
+            postgrest["patients"].insert(patient)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }
