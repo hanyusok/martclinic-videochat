@@ -15,9 +15,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.platform.LocalContext
 import com.example.martclinic_videochat.domain.model.Appointment
+import com.example.martclinic_videochat.presentation.ui.components.AppointmentCard
 import com.example.martclinic_videochat.presentation.viewmodel.HomeViewModel
 import com.example.martclinic_videochat.util.DateTimeUtil
+import com.example.martclinic_videochat.util.MeetUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,6 +30,7 @@ fun HomeScreen(
     val patient by viewModel.patient.collectAsState()
     val appointments by viewModel.appointments.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val context = LocalContext.current
 
     // Calculate appointment counts
     val totalCount = appointments.size
@@ -99,7 +103,14 @@ fun HomeScreen(
                     }
                 } else {
                     items(appointments) { appointment ->
-                        AppointmentItem(appointment)
+                        AppointmentCard(
+                            appointment = appointment,
+                            onEnterConsultation = {
+                                if (!appointment.meet_link.isNullOrBlank()) {
+                                    MeetUtil.openGoogleMeet(context, appointment.meet_link)
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -194,88 +205,4 @@ fun StatCard(title: String, count: Int, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-fun AppointmentItem(appointment: Appointment) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                val statusText = when (appointment.status) {
-                    "pending" -> "접수 대기"
-                    "paid" -> "결제 완료"
-                    "confirmed" -> "예약 확정"
-                    "in_progress" -> "진료 중"
-                    "completed" -> "진료 완료"
-                    "cancelled" -> "예약 취소"
-                    else -> appointment.status
-                }
-                
-                val statusColor = when (appointment.status) {
-                    "completed" -> MaterialTheme.colorScheme.primary
-                    "cancelled" -> MaterialTheme.colorScheme.error
-                    "in_progress" -> MaterialTheme.colorScheme.secondary
-                    else -> MaterialTheme.colorScheme.tertiary
-                }
 
-                SuggestionChip(
-                    onClick = {},
-                    label = { Text(statusText, fontWeight = FontWeight.Bold) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = statusColor.copy(alpha = 0.12f),
-                        labelColor = statusColor
-                    )
-                )
-
-                appointment.payment_amount?.let { amount ->
-                    Text(
-                        text = "${String.format("%,d", amount)}원",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "증상: ${appointment.symptoms}",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-
-            appointment.created_at?.let { createdAt ->
-                val formattedTime = DateTimeUtil.formatTimestampToKst(createdAt)
-                if (formattedTime.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "접수 일시: $formattedTime",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Include Google Meet Video Consultation call link if confirmed or in_progress
-            if (appointment.status in listOf("confirmed", "in_progress") && !appointment.meet_link.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = { /* Meet launch handled in App */ },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("비대면 영상 진료 입장", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}

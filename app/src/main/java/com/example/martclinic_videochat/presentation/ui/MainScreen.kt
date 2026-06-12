@@ -84,9 +84,4 @@ fun MainScreen() {
     }
 }
 
-@Composable
-fun PlaceholderScreen(name: String) {
-    Surface {
-        Text(text = name, modifier = Modifier.padding(16.dp))
-    }
-}
+

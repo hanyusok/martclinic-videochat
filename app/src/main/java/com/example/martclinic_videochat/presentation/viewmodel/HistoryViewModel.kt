@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.model.Patient
-import com.example.martclinic_videochat.domain.repository.AppointmentRepository
+import com.example.martclinic_videochat.domain.usecase.GetAppointmentsUseCase
 import com.example.martclinic_videochat.domain.repository.PatientRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +16,7 @@ import javax.inject.Inject
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val patientRepository: PatientRepository,
-    private val appointmentRepository: AppointmentRepository
+    private val getAppointmentsUseCase: GetAppointmentsUseCase
 ) : ViewModel() {
 
     private val _patient = MutableStateFlow<Patient?>(null)
@@ -39,7 +39,7 @@ class HistoryViewModel @Inject constructor(
                 val activePatient = patientRepository.getFirstPatient()
                 _patient.value = activePatient
                 if (activePatient?.id != null) {
-                    _appointments.value = appointmentRepository.getAppointments(activePatient.id)
+                    _appointments.value = getAppointmentsUseCase(activePatient.id)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

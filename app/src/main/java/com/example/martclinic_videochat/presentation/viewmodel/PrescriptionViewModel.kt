@@ -54,9 +54,9 @@ class PrescriptionViewModel @Inject constructor(
 
                 // 3. Fetch current default pharmacy for potential new dispatch
                 val activePatient = patientRepository.getFirstPatient()
-                if (activePatient != null) {
-                    val list = pharmacyRepository.getAllPharmacies()
-                    _defaultPharmacy.value = list.firstOrNull { it.is_default && it.patient_id == activePatient.id }
+                val patientId = activePatient?.id
+                if (patientId != null) {
+                    _defaultPharmacy.value = pharmacyRepository.getDefaultPharmacy(patientId)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

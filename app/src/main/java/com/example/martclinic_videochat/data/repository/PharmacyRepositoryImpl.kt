@@ -37,19 +37,6 @@ class PharmacyRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getPharmaciesByPatient(patientId: String): List<Pharmacy> {
-        return try {
-            postgrest["favorite_pharmacies"]
-                .select {
-                    filter { eq("patient_id", patientId) }
-                    order("pharmacy_name", Order.ASCENDING)
-                }
-                .decodeList()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
-        }
-    }
 
     override suspend fun getDefaultPharmacy(patientId: String): Pharmacy? {
         return try {

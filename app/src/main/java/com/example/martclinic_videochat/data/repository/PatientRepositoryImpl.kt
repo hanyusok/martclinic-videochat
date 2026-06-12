@@ -27,22 +27,6 @@ class PatientRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getPatientById(id: String): Patient? {
-        return try {
-            val list = postgrest["patients"]
-                .select {
-                    filter {
-                        eq("id", id)
-                    }
-                }
-                .decodeList<Patient>()
-            list.firstOrNull()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
     override suspend fun createPatient(patient: Patient): Boolean {
         return try {
             postgrest["patients"].insert(patient)

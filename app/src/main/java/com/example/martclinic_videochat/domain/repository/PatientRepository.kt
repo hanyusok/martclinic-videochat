@@ -4,6 +4,5 @@ import com.example.martclinic_videochat.domain.model.Patient
 
 interface PatientRepository {
     suspend fun getFirstPatient(): Patient?
-    suspend fun getPatientById(id: String): Patient?
     suspend fun createPatient(patient: Patient): Boolean
 }

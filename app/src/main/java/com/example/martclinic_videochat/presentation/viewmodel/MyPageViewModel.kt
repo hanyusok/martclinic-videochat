@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.model.Patient
-import com.example.martclinic_videochat.domain.repository.AppointmentRepository
+import com.example.martclinic_videochat.domain.usecase.GetAppointmentsUseCase
 import com.example.martclinic_videochat.domain.repository.PatientRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +22,7 @@ import io.github.jan.supabase.auth.status.SessionStatus
 @HiltViewModel
 class MyPageViewModel @Inject constructor(
     private val patientRepository: PatientRepository,
-    private val appointmentRepository: AppointmentRepository,
+    private val getAppointmentsUseCase: GetAppointmentsUseCase,
     private val auth: Auth
 ) : ViewModel() {
 
@@ -57,7 +57,7 @@ class MyPageViewModel @Inject constructor(
                 val activePatient = patientRepository.getFirstPatient()
                 _patient.value = activePatient
                 if (activePatient?.id != null) {
-                    _appointments.value = appointmentRepository.getAppointments(activePatient.id)
+                    _appointments.value = getAppointmentsUseCase(activePatient.id)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
