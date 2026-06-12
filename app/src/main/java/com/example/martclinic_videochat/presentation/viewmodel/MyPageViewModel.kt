@@ -105,7 +105,7 @@ class MyPageViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                auth.signInWith(Google)
+                auth.signInWith(Google, redirectUrl = "martclinic://login-callback")
             } catch (e: Exception) {
                 e.printStackTrace()
                 onError(e.message ?: "Google 로그인에 실패했습니다.")
@@ -119,7 +119,7 @@ class MyPageViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                auth.signInWith(Kakao)
+                auth.signInWith(Kakao, redirectUrl = "martclinic://login-callback")
             } catch (e: Exception) {
                 e.printStackTrace()
                 onError(e.message ?: "Kakao 로그인에 실패했습니다.")
