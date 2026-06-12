@@ -27,6 +27,9 @@ class PrescriptionViewModel @Inject constructor(
     private val _defaultPharmacy = MutableStateFlow<Pharmacy?>(null)
     val defaultPharmacy: StateFlow<Pharmacy?> = _defaultPharmacy.asStateFlow()
 
+    // Add this to track the specific pharmacy the prescription was sent to
+    private val _dispatchedPharmacy = MutableStateFlow<Pharmacy?>(null)
+    val dispatchedPharmacy: StateFlow<Pharmacy?> = _dispatchedPharmacy.asStateFlow()
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -41,13 +44,19 @@ class PrescriptionViewModel @Inject constructor(
                 // 1. Fetch prescription
                 val record = prescriptionRepository.getPrescriptionByAppointment(appointmentId)
                 _prescription.value = record
-                
-                // 2. Fetch patient's default pharmacy
+
+                // 2. Fetch the pharmacy it was sent to (if any)
+                if (record?.sent_pharmacy_id != null) {
+                    _dispatchedPharmacy.value = pharmacyRepository.getPharmacyById(record.sent_pharmacy_id)
+                } else {
+                    _dispatchedPharmacy.value = null
+                }
+
+                // 3. Fetch current default pharmacy for potential new dispatch
                 val activePatient = patientRepository.getFirstPatient()
                 if (activePatient != null) {
                     val list = pharmacyRepository.getAllPharmacies()
-                    val defaultPharm = list.firstOrNull { it.is_default && it.patient_id == activePatient.id }
-                    _defaultPharmacy.value = defaultPharm
+                    _defaultPharmacy.value = list.firstOrNull { it.is_default && it.patient_id == activePatient.id }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -70,6 +79,8 @@ class PrescriptionViewModel @Inject constructor(
                 val success = prescriptionRepository.sendPrescriptionToPharmacy(presId, pharmacyId)
                 if (success) {
                     _dispatchSuccess.value = true
+                    // Update dispatched pharmacy info immediately
+                    _dispatchedPharmacy.value = pharmacy
                     // Reload prescription to update sent status
                     _prescription.value = prescriptionRepository.getPrescriptionByAppointment(pres.appointment_id)
                 } else {

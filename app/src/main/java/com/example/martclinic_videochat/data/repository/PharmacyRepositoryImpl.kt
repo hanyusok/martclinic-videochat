@@ -23,6 +23,20 @@ class PharmacyRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getPharmacyById(id: String): Pharmacy? {
+        return try {
+            val list = postgrest["favorite_pharmacies"]
+                .select {
+                    filter { eq("id", id) }
+                }
+                .decodeList<Pharmacy>()
+            list.firstOrNull()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
     override suspend fun setPharmacyDefault(pharmacyId: String, patientId: String, isDefault: Boolean): Boolean {
         return try {
             if (isDefault) {

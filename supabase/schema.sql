@@ -103,3 +103,17 @@ create policy "Patients can view their own prescriptions" on prescriptions
       select id from patients where user_id = auth.uid()
     )
   ));
+
+create policy "Patients can update their own prescriptions" on prescriptions
+  for update to authenticated
+  using (appointment_id in (
+    select id from appointments where patient_id in (
+      select id from patients where user_id = auth.uid()
+    )
+  ))
+  with check (appointment_id in (
+    select id from appointments where patient_id in (
+      select id from patients where user_id = auth.uid()
+    )
+  ));
+

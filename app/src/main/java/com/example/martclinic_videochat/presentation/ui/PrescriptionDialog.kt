@@ -36,6 +36,7 @@ fun PrescriptionDialog(
     val context = LocalContext.current
     val prescription by viewModel.prescription.collectAsState()
     val defaultPharmacy by viewModel.defaultPharmacy.collectAsState()
+    val dispatchedPharmacy by viewModel.dispatchedPharmacy.collectAsState() // Add thi
     val isLoading by viewModel.isLoading.collectAsState()
     val dispatchSuccess by viewModel.dispatchSuccess.collectAsState()
 
@@ -174,13 +175,13 @@ fun PrescriptionDialog(
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                    text = defaultPharmacy?.pharmacy_name ?: "지정된 약국",
+                                    text = dispatchedPharmacy?.pharmacy_name ?: "지정된 약국",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = defaultPharmacy?.address ?: "",
+                                    text = dispatchedPharmacy?.address ?: "",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
