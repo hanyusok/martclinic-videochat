@@ -18,6 +18,9 @@ import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import javax.inject.Singleton
+import io.github.jan.supabase.compose.auth.ComposeAuth
+import io.github.jan.supabase.compose.auth.composeAuth
+import io.github.jan.supabase.compose.auth.googleNativeLogin
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -26,19 +29,30 @@ object SupabaseModule {
     @Provides
     @Singleton
     fun provideSupabaseClient(): SupabaseClient {
-        return createSupabaseClient(
-            supabaseUrl = Constants.SUPABASE_URL,
-            supabaseKey = Constants.SUPABASE_ANON_KEY
-        ) {
-            install(Postgrest)
-            install(Auth) {
-                autoLoadFromStorage = true
-                scheme = "martclinic"
-                host = "login-callback"
+        val createClient: (Boolean) -> SupabaseClient = { autoLoad ->
+            createSupabaseClient(
+                supabaseUrl = Constants.SUPABASE_URL,
+                supabaseKey = Constants.SUPABASE_ANON_KEY
+            ) {
+                install(Postgrest)
+                install(Auth) {
+                    autoLoadFromStorage = autoLoad
+                    autoSaveToStorage = true
+                }
+                install(ComposeAuth) {
+                    googleNativeLogin(serverClientId = "8h4knsue8ei77hjhcluppsm005pud4jb.apps.googleusercontent.com")
+                }
+                install(Storage)
+                install(Functions)
+                install(Realtime)
             }
-            install(Storage)
-            install(Functions)
-            install(Realtime)
+        }
+
+        return try {
+            createClient(true)
+        } catch (e: Exception) {
+            // If session loading fails (e.g. due to corrupted storage), fallback to no auto-load
+            createClient(false)
         }
     }
 
