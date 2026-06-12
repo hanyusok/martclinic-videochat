@@ -15,13 +15,14 @@ class AppointmentRepositoryImpl @Inject constructor(
 ) : AppointmentRepository {
 
     override suspend fun getAppointments(patientId: String): List<Appointment> {
-        return postgrest["appointments"]
-            .select {
-                filter {
-                    eq("patient_id", patientId)
-                }
-            }
-            .decodeList()
+        return try {
+            postgrest["appointments"]
+                .select { filter { eq("patient_id", patientId) } }
+                .decodeList()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
     }
 
     override suspend fun createAppointment(appointment: Appointment) {
