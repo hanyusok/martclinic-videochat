@@ -28,6 +28,8 @@ fun HistoryScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val patient by viewModel.patient.collectAsState()
 
+    var activePrescriptionAppointmentId by remember { mutableStateOf<String?>(null) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -73,7 +75,10 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(appointments) { appointment ->
-                        HistoryItem(appointment = appointment)
+                        HistoryItem(
+                            appointment = appointment,
+                            onViewPrescription = { activePrescriptionAppointmentId = it }
+                        )
                     }
                 }
             }
@@ -83,10 +88,20 @@ fun HistoryScreen(
             }
         }
     }
+
+    activePrescriptionAppointmentId?.let { apptId ->
+        PrescriptionDialog(
+            appointmentId = apptId,
+            onDismiss = { activePrescriptionAppointmentId = null }
+        )
+    }
 }
 
 @Composable
-fun HistoryItem(appointment: Appointment) {
+fun HistoryItem(
+    appointment: Appointment,
+    onViewPrescription: (String) -> Unit
+) {
     val formattedTime = DateTimeUtil.formatTimestampToKst(appointment.created_at)
     
     Card(
@@ -170,6 +185,19 @@ fun HistoryItem(appointment: Appointment) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("비대면 영상 진료 입장", fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Prescription View Button for completed consults
+            if (appointment.status == "completed" && appointment.id != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = { onViewPrescription(appointment.id) },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("전자 처방전 조회", fontWeight = FontWeight.Bold)
                 }
             }
         }
