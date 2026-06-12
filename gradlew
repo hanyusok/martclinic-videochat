@@ -135,10 +135,22 @@ else
     JAVACMD=java
     if ! command -v java >/dev/null 2>&1
     then
-        die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+        # Fallback to Android Studio bundled JDK/JBR if found
+        if [ -d "/Applications/Android Studio.app/Contents/jbr/Contents/Home" ] ; then
+            export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+            JAVACMD="$JAVA_HOME/bin/java"
+        elif [ -d "/opt/android-studio/jbr" ] ; then
+            export JAVA_HOME="/opt/android-studio/jbr"
+            JAVACMD="$JAVA_HOME/bin/java"
+        elif [ -d "$HOME/android-studio/jbr" ] ; then
+            export JAVA_HOME="$HOME/android-studio/jbr"
+            JAVACMD="$JAVA_HOME/bin/java"
+        else
+            die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
 
 Please set the JAVA_HOME variable in your environment to match the
 location of your Java installation."
+        fi
     fi
 fi
 

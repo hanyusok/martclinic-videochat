@@ -69,16 +69,16 @@ fun MainScreen() {
                 HomeScreen()
             }
             composable<Screen.Booking> {
-                PlaceholderScreen("예약 화면")
+                BookingScreen()
             }
             composable<Screen.Pharmacy> {
-                PlaceholderScreen("약국 찾기 화면")
+                PharmacyScreen()
             }
             composable<Screen.History> {
                 PlaceholderScreen("진료 기록 화면")
             }
             composable<Screen.MyPage> {
-                PlaceholderScreen("마이페이지")
+                MyPageScreen()
             }
         }
     }
