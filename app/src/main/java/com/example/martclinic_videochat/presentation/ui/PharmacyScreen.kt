@@ -72,8 +72,10 @@ fun PharmacyScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(pharmacies) { pharmacy ->
+                        val isUserDefault = pharmacy.is_default && pharmacy.patient_id == patient?.id
                         PharmacyItem(
                             pharmacy = pharmacy,
+                            isUserDefault = isUserDefault,
                             onToggleDefault = { isDefault ->
                                 viewModel.toggleDefaultPharmacy(pharmacy, isDefault)
                             }
@@ -92,13 +94,14 @@ fun PharmacyScreen(
 @Composable
 fun PharmacyItem(
     pharmacy: Pharmacy,
+    isUserDefault: Boolean,
     onToggleDefault: (Boolean) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (pharmacy.is_default) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+            containerColor = if (isUserDefault) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         )
     ) {
@@ -114,11 +117,11 @@ fun PharmacyItem(
                     fontWeight = FontWeight.Bold
                 )
                 
-                IconButton(onClick = { onToggleDefault(!pharmacy.is_default) }) {
+                IconButton(onClick = { onToggleDefault(!isUserDefault) }) {
                     Icon(
-                        imageVector = if (pharmacy.is_default) Icons.Default.Star else Icons.Outlined.StarBorder,
+                        imageVector = if (isUserDefault) Icons.Default.Star else Icons.Outlined.StarBorder,
                         contentDescription = "기본 약국 설정",
-                        tint = if (pharmacy.is_default) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                        tint = if (isUserDefault) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                     )
                 }
             }
@@ -157,7 +160,7 @@ fun PharmacyItem(
                 )
             }
 
-            if (pharmacy.is_default) {
+            if (isUserDefault) {
                 Spacer(modifier = Modifier.height(12.dp))
                 SuggestionChip(
                     onClick = {},

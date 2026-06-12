@@ -10,13 +10,10 @@ class PharmacyRepositoryImpl @Inject constructor(
     private val postgrest: Postgrest
 ) : PharmacyRepository {
 
-    override suspend fun getPharmaciesByPatient(patientId: String): List<Pharmacy> {
+    override suspend fun getAllPharmacies(): List<Pharmacy> {
         return try {
             postgrest["favorite_pharmacies"]
                 .select {
-                    filter {
-                        eq("patient_id", patientId)
-                    }
                     order("pharmacy_name", Order.ASCENDING)
                 }
                 .decodeList()
@@ -35,11 +32,23 @@ class PharmacyRepositoryImpl @Inject constructor(
                         eq("patient_id", patientId)
                     }
                 }
-            }
-            // Set the target pharmacy to default/non-default
-            postgrest["favorite_pharmacies"].update(mapOf("is_default" to isDefault)) {
-                filter {
-                    eq("id", pharmacyId)
+                // Set the target pharmacy's owner to the current patient, and set is_default = true
+                postgrest["favorite_pharmacies"].update(
+                    mapOf(
+                        "patient_id" to patientId,
+                        "is_default" to true
+                    )
+                ) {
+                    filter {
+                        eq("id", pharmacyId)
+                    }
+                }
+            } else {
+                // Remove default status
+                postgrest["favorite_pharmacies"].update(mapOf("is_default" to false)) {
+                    filter {
+                        eq("id", pharmacyId)
+                    }
                 }
             }
             true

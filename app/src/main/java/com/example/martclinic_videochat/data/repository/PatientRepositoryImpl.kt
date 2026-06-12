@@ -14,8 +14,9 @@ class PatientRepositoryImpl @Inject constructor(
         return try {
             val list = postgrest["patients"]
                 .select {
-                    limit(1)
-                    order("created_at", Order.ASCENDING)
+                    filter {
+                        eq("name", "김철수")
+                    }
                 }
                 .decodeList<Patient>()
             list.firstOrNull()

@@ -75,7 +75,7 @@ fun MainScreen() {
                 PharmacyScreen()
             }
             composable<Screen.History> {
-                PlaceholderScreen("진료 기록 화면")
+                HistoryScreen()
             }
             composable<Screen.MyPage> {
                 MyPageScreen()
