@@ -9,31 +9,34 @@ import kotlinx.serialization.Serializable
 data class Appointment(
     val id: String? = null,
     val patient_id: String,
-    val schedule_id: String,
+    val schedule_id: String? = null, // Optional in ASAP mode
     val status: String,
     val symptoms: String,
+    val queue_number: Int? = null,
+    val estimated_wait_minutes: Int? = null,
     val meet_link: String? = null,
     val payment_amount: Int? = null,
     val created_at: String? = null
 ) {
     val statusText: String
         get() = when (status) {
-            "pending" -> "접수 대기"
-            "paid" -> "결제 완료"
-            "confirmed" -> "예약 확정"
+            "waiting" -> "대기 중"
+            "calling" -> "진료 입장 대기"
             "in_progress" -> "진료 중"
             "completed" -> "진료 완료"
-            "cancelled" -> "예약 취소"
+            "cancelled" -> "진료 취소"
             else -> status
         }
 
     @Composable
     fun getStatusColor(): Color {
         return when (status) {
-            "completed" -> MaterialTheme.colorScheme.primary
+            "waiting" -> MaterialTheme.colorScheme.tertiary
+            "calling" -> MaterialTheme.colorScheme.secondary
+            "in_progress" -> MaterialTheme.colorScheme.primary
+            "completed" -> MaterialTheme.colorScheme.outline
             "cancelled" -> MaterialTheme.colorScheme.error
-            "in_progress" -> MaterialTheme.colorScheme.secondary
-            else -> MaterialTheme.colorScheme.tertiary
+            else -> MaterialTheme.colorScheme.surfaceVariant
         }
     }
 }
