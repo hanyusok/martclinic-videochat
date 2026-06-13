@@ -2,9 +2,7 @@ package com.example.martclinic_videochat.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.model.Patient
-import com.example.martclinic_videochat.domain.usecase.GetAppointmentsUseCase
 import com.example.martclinic_videochat.domain.repository.PatientRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +24,6 @@ import com.example.martclinic_videochat.domain.repository.EmrRepository
 class MyPageViewModel @Inject constructor(
     private val patientRepository: PatientRepository,
     private val emrRepository: EmrRepository,
-    private val getAppointmentsUseCase: GetAppointmentsUseCase,
     private val auth: Auth
 ) : ViewModel() {
 
@@ -49,11 +46,12 @@ class MyPageViewModel @Inject constructor(
         }
     }
 
+    private val _patients = MutableStateFlow<List<Patient>>(emptyList())
+    val patients: StateFlow<List<Patient>> = _patients.asStateFlow()
+
+    // Derived state for the account holder's own profile
     private val _patient = MutableStateFlow<Patient?>(null)
     val patient: StateFlow<Patient?> = _patient.asStateFlow()
-
-    private val _appointments = MutableStateFlow<List<Appointment>>(emptyList())
-    val appointments: StateFlow<List<Appointment>> = _appointments.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -67,7 +65,7 @@ class MyPageViewModel @Inject constructor(
                     loadPatientInfo()
                 } else {
                     _patient.value = null
-                    _appointments.value = emptyList()
+                    _patients.value = emptyList()
                 }
             }
         }
@@ -77,11 +75,9 @@ class MyPageViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val activePatient = patientRepository.getFirstPatient()
-                _patient.value = activePatient
-                if (activePatient?.id != null) {
-                    _appointments.value = getAppointmentsUseCase(activePatient.id)
-                }
+                val list = patientRepository.getPatients()
+                _patients.value = list
+                _patient.value = list.find { it.relationship == "본인" }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -158,7 +154,7 @@ class MyPageViewModel @Inject constructor(
             try {
                 auth.signOut()
                 _patient.value = null
-                _appointments.value = emptyList()
+                _patients.value = emptyList()
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -171,6 +167,7 @@ class MyPageViewModel @Inject constructor(
         nameInput: String,
         phoneInput: String,
         residentInput: String,
+        relationshipInput: String = "본인",
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
@@ -191,6 +188,7 @@ class MyPageViewModel @Inject constructor(
                     name = nameInput,
                     phone = phoneInput,
                     resident_number = residentInput,
+                    relationship = relationshipInput,
                     clinic_patient_number = emrRecord.emr_patient_number?.toString()
                 )
                 val success = patientRepository.createPatient(newPatient)
@@ -210,63 +208,92 @@ class MyPageViewModel @Inject constructor(
     }
 
     fun updatePatientProfile(
+        patientId: String,
         nameInput: String,
         phoneInput: String,
         residentInput: String,
+        relationshipInput: String,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        val currentPatient = _patient.value ?: return
+        val current = _patients.value.find { it.id == patientId } ?: return
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Simplified Update: No mandatory EMR check for manual edits
-                val updatedPatient = currentPatient.copy(
+                val updatedPatient = current.copy(
                     name = nameInput,
                     phone = phoneInput,
-                    resident_number = residentInput
+                    resident_number = residentInput,
+                    relationship = relationshipInput
                 )
                 val success = patientRepository.updatePatient(updatedPatient)
                 if (success) {
                     loadPatientInfo()
                     onSuccess()
                 } else {
-                    onError("환자 정보 수정에 실패했습니다.")
+                    onError("정보 수정에 실패했습니다.")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                onError(e.message ?: "환자 정보 수정에 실패했습니다.")
+                onError("정보 수정 중 오류가 발생했습니다.")
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    /**
-     * Dedicated method for EMR Sync (Search -> Pick -> Sync)
-     */
-    fun syncWithEmrRecord(
-        emrPatient: EmrPatient,
-        onSuccess: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        val currentPatient = _patient.value ?: return
+    fun deletePatientProfile(patientId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val updatedPatient = currentPatient.copy(
-                    name = emrPatient.name ?: currentPatient.name,
-                    phone = emrPatient.phone ?: currentPatient.phone,
-                    resident_number = emrPatient.resident_number ?: currentPatient.resident_number,
-                    clinic_patient_number = emrPatient.emr_patient_number?.toString() ?: currentPatient.clinic_patient_number
-                )
-                val success = patientRepository.updatePatient(updatedPatient)
+                val success = patientRepository.deletePatient(patientId)
                 if (success) {
                     loadPatientInfo()
                     onSuccess()
                 } else {
-                    onError("EMR 정보 동기화에 실패했습니다.")
+                    onError("삭제에 실패했습니다.")
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onError("삭제 중 오류가 발생했습니다.")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun syncWithEmrRecord(
+        emrPatient: EmrPatient,
+        targetPatientId: String?, // Optional: if syncing for a specific family member
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                if (targetPatientId != null) {
+                    val current = _patients.value.find { it.id == targetPatientId } ?: return@launch
+                    val updated = current.copy(
+                        name = emrPatient.name ?: current.name,
+                        phone = emrPatient.phone ?: current.phone,
+                        resident_number = emrPatient.resident_number ?: current.resident_number,
+                        clinic_patient_number = emrPatient.emr_patient_number?.toString() ?: current.clinic_patient_number
+                    )
+                    patientRepository.updatePatient(updated)
+                } else {
+                    // This was likely intended for a new registration or the 'Self' sync
+                    // We'll treat it as 'Self' update for simplicity if target is null
+                    val self = _patient.value ?: return@launch
+                    val updated = self.copy(
+                        name = emrPatient.name ?: self.name,
+                        phone = emrPatient.phone ?: self.phone,
+                        resident_number = emrPatient.resident_number ?: self.resident_number,
+                        clinic_patient_number = emrPatient.emr_patient_number?.toString() ?: self.clinic_patient_number
+                    )
+                    patientRepository.updatePatient(updated)
+                }
+                loadPatientInfo()
+                onSuccess()
             } catch (e: Exception) {
                 e.printStackTrace()
                 onError("동기화 중 오류가 발생했습니다.")

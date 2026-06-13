@@ -11,6 +11,7 @@ data class Patient(
     val phone: String,
     @SerialName("resident_last7")
     val resident_number: String,
+    val relationship: String = "본인",
     val clinic_patient_number: String? = null,
     val created_at: String? = null
 )

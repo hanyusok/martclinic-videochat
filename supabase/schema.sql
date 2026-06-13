@@ -71,6 +71,10 @@ create policy "Patients can view their own data" on patients
   for select to authenticated
   using (auth.uid() = user_id);
 
+create policy "Patients can insert their own data" on patients
+  for insert to authenticated
+  with check (auth.uid() = user_id);
+
 create policy "Patients can update their own data" on patients
   for update to authenticated
   using (auth.uid() = user_id)

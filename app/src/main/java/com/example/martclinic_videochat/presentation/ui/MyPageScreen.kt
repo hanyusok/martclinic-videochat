@@ -27,17 +27,16 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.martclinic_videochat.domain.model.Patient
 import com.example.martclinic_videochat.presentation.viewmodel.MyPageViewModel
-import com.example.martclinic_videochat.util.DateTimeUtil
 import io.github.jan.supabase.auth.status.SessionStatus
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MyPageScreen(
     viewModel: MyPageViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val patient by viewModel.patient.collectAsState()
-    val appointments by viewModel.appointments.collectAsState()
+    val patients by viewModel.patients.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val sessionStatus by viewModel.sessionStatus.collectAsState()
 
@@ -71,17 +70,42 @@ fun MyPageScreen(
                 is SessionStatus.Authenticated -> {
                     if (patient != null) {
                         MyPageDashboard(
-                            patient = patient!!,
-                            appointments = appointments,
-                            isLoading = isLoading,
-                            viewModel = viewModel, // Pass existing viewModel
-                            onUpdateProfile = { name, phone, resident ->
+                            patients = patients,
+                            viewModel = viewModel,
+                            onUpdateProfile = { id, name, phone, resident, relationship ->
                                 viewModel.updatePatientProfile(
+                                    patientId = id,
                                     nameInput = name,
                                     phoneInput = phone,
                                     residentInput = resident,
+                                    relationshipInput = relationship,
                                     onSuccess = {
-                                        Toast.makeText(context, "회원 정보가 수정되었습니다.", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "정보가 수정되었습니다.", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { error ->
+                                        Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                            },
+                            onAddFamily = { name, phone, resident, relationship ->
+                                viewModel.createPatientProfile(
+                                    nameInput = name,
+                                    phoneInput = phone,
+                                    residentInput = resident,
+                                    relationshipInput = relationship,
+                                    onSuccess = {
+                                        Toast.makeText(context, "가족 정보가 등록되었습니다.", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { error ->
+                                        Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                            },
+                            onDeleteProfile = { id ->
+                                viewModel.deletePatientProfile(
+                                    patientId = id,
+                                    onSuccess = {
+                                        Toast.makeText(context, "정보가 삭제되었습니다.", Toast.LENGTH_SHORT).show()
                                     },
                                     onError = { error ->
                                         Toast.makeText(context, error, Toast.LENGTH_LONG).show()
@@ -91,12 +115,13 @@ fun MyPageScreen(
                         )
                     } else if (!isLoading) {
                         ProfileRegistrationForm(
-                            viewModel = viewModel, // Pass existing viewModel
+                            viewModel = viewModel,
                             onSubmit = { name, phone, resident ->
                                 viewModel.createPatientProfile(
                                     nameInput = name,
                                     phoneInput = phone,
                                     residentInput = resident,
+                                    relationshipInput = "본인",
                                     onSuccess = {
                                         Toast.makeText(context, "환자 정보가 등록되었습니다.", Toast.LENGTH_SHORT).show()
                                     },
@@ -144,14 +169,16 @@ fun MyPageScreen(
 
 @Composable
 fun MyPageDashboard(
-    patient: Patient,
-    appointments: List<com.example.martclinic_videochat.domain.model.Appointment>,
-    isLoading: Boolean,
-    onUpdateProfile: (String, String, String) -> Unit,
-    viewModel: MyPageViewModel // ViewModel passed from parent
+    patients: List<Patient>,
+    onUpdateProfile: (String, String, String, String, String) -> Unit,
+    onAddFamily: (String, String, String, String) -> Unit,
+    onDeleteProfile: (String) -> Unit,
+    viewModel: MyPageViewModel
 ) {
-    var showEditDialog by remember { mutableStateOf(false) }
+    var editingPatient by remember { mutableStateOf<Patient?>(null) }
+    var isAddingFamily by remember { mutableStateOf(false) }
     var showEmrSearchDialog by remember { mutableStateOf(false) }
+    var searchTargetId by remember { mutableStateOf<String?>(null) }
     
     val context = LocalContext.current
     val emrSearchResults by viewModel.emrSearchResults.collectAsState()
@@ -162,113 +189,69 @@ fun MyPageDashboard(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Patient Profile Card Section
-        item {
-            PatientProfileCard(
-                patient = patient,
-                onEditClick = { showEditDialog = true }
-            )
-        }
-
-        // EMR Search Row outside the card/dialog
-        item {
-            Button(
-                onClick = {
-                    viewModel.searchEmrPatients(patient.name)
-                    showEmrSearchDialog = true
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-            ) {
-                Icon(Icons.Default.Search, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("EMR 환자 데이터 검색 (본인인증)")
-            }
-        }
-
-        // Section Title: History
+        // Patient Profiles Section
         item {
             Text(
-                text = "과거 진료 내역",
+                text = "가족 프로필 관리",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 8.dp)
+                color = MaterialTheme.colorScheme.primary
             )
         }
 
-        if (appointments.isEmpty() && !isLoading) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                ) {
-                    Text(
-                        text = "진료 내역이 없습니다.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp)
-                    )
+        items(patients) { p ->
+            PatientProfileCard(
+                patient = p,
+                onEditClick = { editingPatient = p },
+                onSyncClick = {
+                    searchTargetId = p.id
+                    viewModel.searchEmrPatients(p.name)
+                    showEmrSearchDialog = true
                 }
-            }
-        } else {
-            items(appointments) { appointment ->
-                val formattedTime = DateTimeUtil.formatTimestampToKst(appointment.created_at)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "상태: ${appointment.status.uppercase()}",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (appointment.status == "completed") MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.secondary
-                            )
-                            
-                            appointment.payment_amount?.let { amount ->
-                                Text(
-                                    text = "${String.format("%,d", amount)}원",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+            )
+        }
 
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text(
-                            text = "증상: ${appointment.symptoms}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        
-                        if (formattedTime.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "진료 일시: $formattedTime",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+        item {
+            Button(
+                onClick = { isAddingFamily = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("가족 추가하기", fontWeight = FontWeight.Bold)
             }
         }
     }
 
-    if (showEditDialog) {
+    editingPatient?.let { p ->
         PatientProfileEditDialog(
-            patient = patient,
-            onDismiss = { showEditDialog = false },
-            onConfirm = { name, phone, resident ->
-                onUpdateProfile(name, phone, resident)
-                showEditDialog = false
+            patient = p,
+            viewModel = viewModel,
+            onDismiss = { editingPatient = null },
+            onConfirm = { name, phone, resident, relationship ->
+                onUpdateProfile(p.id!!, name, phone, resident, relationship)
+                editingPatient = null
+            },
+            onDelete = {
+                onDeleteProfile(p.id!!)
+                editingPatient = null
+            }
+        )
+    }
+
+    if (isAddingFamily) {
+        // We can reuse the edit dialog for adding by passing a dummy patient
+        val userId = viewModel.patient.value?.user_id ?: ""
+        PatientProfileEditDialog(
+            patient = Patient(user_id = userId, name = "", phone = "", resident_number = "", relationship = "배우자"),
+            isNew = true,
+            viewModel = viewModel,
+            onDismiss = { isAddingFamily = false },
+            onConfirm = { name, phone, resident, relationship ->
+                onAddFamily(name, phone, resident, relationship)
+                isAddingFamily = false
             }
         )
     }
@@ -314,6 +297,7 @@ fun MyPageDashboard(
                                             // Use the dedicated sync method for EMR results
                                             viewModel.syncWithEmrRecord(
                                                 emrPatient = p,
+                                                targetPatientId = searchTargetId,
                                                 onSuccess = {
                                                     Toast.makeText(context, "EMR 정보와 동기화되었습니다.", Toast.LENGTH_SHORT).show()
                                                 },
@@ -362,12 +346,13 @@ fun MyPageDashboard(
 @Composable
 fun PatientProfileCard(
     patient: Patient,
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    onSyncClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        colors = CardDefaults.cardColors(containerColor = if (patient.relationship == "본인") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -375,18 +360,34 @@ fun PatientProfileCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "${patient.name} 님",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                IconButton(onClick = onEditClick) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "정보 수정",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                Column {
+                    Text(
+                        text = patient.relationship,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (patient.relationship == "본인") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
                     )
+                    Text(
+                        text = "${patient.name} 님",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Row {
+                    IconButton(onClick = onSyncClick) {
+                        Icon(
+                            imageVector = Icons.Default.Sync,
+                            contentDescription = "EMR 동기화",
+                            tint = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = onEditClick) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "정보 수정",
+                            tint = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
             
@@ -394,12 +395,12 @@ fun PatientProfileCard(
                 Text(
                     text = "환자 번호: $it",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
+            HorizontalDivider(color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -741,15 +742,24 @@ fun ProfileRegistrationForm(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PatientProfileEditDialog(
     patient: Patient,
+    isNew: Boolean = false,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String) -> Unit
+    onConfirm: (String, String, String, String) -> Unit,
+    onDelete: (() -> Unit)? = null,
+    viewModel: MyPageViewModel // Added viewModel parameter
 ) {
     var name by remember { mutableStateOf(patient.name) }
     var phoneValue by remember { mutableStateOf(TextFieldValue(patient.phone, TextRange(patient.phone.length))) }
     var residentValue by remember { mutableStateOf(TextFieldValue(patient.resident_number, TextRange(patient.resident_number.length))) }
+    var relationship by remember { mutableStateOf(patient.relationship) }
+
+    val emrSearchResults by viewModel.emrSearchResults.collectAsState()
+    val isEmrLoading by viewModel.isEmrLoading.collectAsState()
+    var showEmrSearchDialog by remember { mutableStateOf(false) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
@@ -761,6 +771,7 @@ fun PatientProfileEditDialog(
     val isNameValid = name.isNotBlank() && name.length >= 2
     val isPhoneValid = phone.matches(Regex("^01[016789]-\\d{3,4}-\\d{4}$"))
     val isResidentValid = residentNumber.matches(Regex("^\\d{6}-\\d{7}$"))
+    val relationships = listOf("본인", "배우자", "자녀", "부모", "기타")
 
     fun formatPhone(input: String): String {
         val digits = input.filter { it.isDigit() }
@@ -864,13 +875,50 @@ fun PatientProfileEditDialog(
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "내 정보 수정",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isNew) "가족 추가" else "프로필 수정",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (!isNew && patient.relationship != "본인") {
+                        IconButton(onClick = { onDelete?.invoke() }) {
+                            Icon(Icons.Default.Delete, contentDescription = "삭제", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // Relationship Selection (only if not '본인' editing self)
+                if (patient.relationship != "본인" || isNew) {
+                    Text(
+                        text = "관계 선택",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        relationships.filter { it != "본인" }.forEach { rel ->
+                            FilterChip(
+                                selected = relationship == rel,
+                                onClick = { relationship = rel },
+                                label = { Text(rel) },
+                                leadingIcon = if (relationship == rel) {
+                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                } else null
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
 
                 OutlinedTextField(
                     value = name,
@@ -886,6 +934,22 @@ fun PatientProfileEditDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Button(
+                    onClick = { 
+                        if (name.isNotBlank()) {
+                            viewModel.searchEmrPatients(name)
+                            showEmrSearchDialog = true
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("EMR 환자 검색")
+                }
 
                 OutlinedTextField(
                     value = phoneValue,
@@ -923,14 +987,95 @@ fun PatientProfileEditDialog(
                     Button(
                         onClick = {
                             if (isNameValid && isPhoneValid && isResidentValid) {
-                                onConfirm(name, phone, residentNumber)
+                                onConfirm(name, phone, residentNumber, relationship)
                             }
                         },
                         enabled = isNameValid && isPhoneValid && isResidentValid,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Edit (Save)")
+                        Text(if (isNew) "Register" else "Save")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showEmrSearchDialog) {
+        Dialog(onDismissRequest = { showEmrSearchDialog = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "EMR 환자 검색 결과",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (isEmrLoading) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    } else {
+                        val exists = emrSearchResults.isNotEmpty()
+
+                        Text(
+                            text = if (exists) "EMR 등록 환자 확인됨 (${emrSearchResults.size}명)" else "EMR 등록 정보 없음",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (exists) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+
+                        if (exists) {
+                            LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                                items(emrSearchResults) { p ->
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        onClick = {
+                                            name = p.name ?: ""
+                                            val resNum = p.resident_number ?: ""
+                                            residentValue = TextFieldValue(resNum, TextRange(resNum.length))
+                                            p.phone?.let {
+                                                phoneValue = TextFieldValue(it, TextRange(it.length))
+                                            }
+                                            showEmrSearchDialog = false
+                                        }
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(text = "${p.name}", fontWeight = FontWeight.Bold)
+                                                Text(text = if (p.sex == "1") "남성" else "여성", style = MaterialTheme.typography.bodySmall)
+                                            }
+                                            Text(text = "생년월일: ${p.birth_date}", style = MaterialTheme.typography.bodySmall)
+                                            Text(text = "주민번호: ${p.resident_number}", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "입력하신 이름으로 등록된 환자가 병원 데이터베이스에 존재하지 않습니다.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    TextButton(
+                        onClick = { showEmrSearchDialog = false },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("닫기")
                     }
                 }
             }
