@@ -16,9 +16,18 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
+import com.example.martclinic_videochat.data.repository.EmrRepositoryImpl
+import com.example.martclinic_videochat.domain.repository.EmrRepository
+
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindEmrRepository(
+        emrRepositoryImpl: EmrRepositoryImpl
+    ): EmrRepository
 
     @Binds
     @Singleton
