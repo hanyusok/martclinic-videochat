@@ -35,7 +35,19 @@ create table appointments (
   created_at timestamp with time zone default now()
 );
 
--- 4. Favorite Pharmacies
+-- 4. Master Pharmacies (외부 API에서 가져온 약국 목록)
+create table pharmacies (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  address text,
+  latitude double precision,
+  longitude double precision,
+  phone text,
+  created_at timestamp with time zone default now(),
+  constraint pharmacies_name_address_key unique (name, address)
+);
+
+-- 5. Favorite Pharmacies
 create table favorite_pharmacies (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid references patients(id),
@@ -48,7 +60,7 @@ create table favorite_pharmacies (
   created_at timestamp with time zone default now()
 );
 
--- 5. Prescriptions
+-- 6. Prescriptions
 create table prescriptions (
   id uuid primary key default gen_random_uuid(),
   appointment_id uuid references appointments(id),
@@ -63,6 +75,7 @@ create table prescriptions (
 alter table patients enable row level security;
 alter table schedules enable row level security;
 alter table appointments enable row level security;
+alter table pharmacies enable row level security;
 alter table favorite_pharmacies enable row level security;
 alter table prescriptions enable row level security;
 
@@ -94,6 +107,20 @@ create policy "Patients can insert their own appointments" on appointments
   for insert to authenticated
   with check (patient_id in (select id from patients where user_id = auth.uid()));
 
+-- Pharmacies Policy: 모든 인증된 사용자는 약국 목록 조회/동기화 가능
+create policy "Pharmacies are viewable by authenticated users" on pharmacies
+  for select to authenticated
+  using (true);
+
+create policy "Pharmacies are insertable by authenticated users" on pharmacies
+  for insert to authenticated
+  with check (true);
+
+create policy "Pharmacies are updatable by authenticated users" on pharmacies
+  for update to authenticated
+  using (true)
+  with check (true);
+
 -- Favorite Pharmacies Policy
 create policy "Patients can manage their favorite pharmacies" on favorite_pharmacies
   for all to authenticated
@@ -120,4 +147,3 @@ create policy "Patients can update their own prescriptions" on prescriptions
       select id from patients where user_id = auth.uid()
     )
   ));
-

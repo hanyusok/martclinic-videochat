@@ -58,7 +58,6 @@ dependencies {
     implementation(libs.androidx.credentials.play.services)
     implementation(libs.googleid)
 
-
     // Supabase
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.compose.auth)
@@ -84,6 +83,10 @@ dependencies {
 
     // Coil
     implementation(libs.coil.compose)
+
+    // Location
+    implementation(libs.play.services.location)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
