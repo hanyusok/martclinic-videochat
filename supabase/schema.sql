@@ -1,10 +1,11 @@
 -- 1. Patients
 create table patients (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users not null unique,
+  user_id uuid references auth.users not null,
   name text,
-  phone text unique,
-  resident_last7 text, -- 암호화 권장
+  phone text,
+  resident_number text, -- 주민번호 (암호화 권장)
+  relationship text default '본인',
   clinic_patient_number text,
   created_at timestamp with time zone default now()
 );
@@ -35,7 +36,7 @@ create table appointments (
   created_at timestamp with time zone default now()
 );
 
--- 4. Master Pharmacies (외부 API에서 가져온 약국 목록)
+-- 4. Master Pharmacies (외부 API 및 CSV에서 가져온 약국 목록)
 create table pharmacies (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -43,9 +44,40 @@ create table pharmacies (
   latitude double precision,
   longitude double precision,
   phone text,
+  hpid text unique, -- 기관 식별 코드 (Upsert용)
+  location geography(POINT, 4326), -- PostGIS 공간 데이터
   created_at timestamp with time zone default now(),
   constraint pharmacies_name_address_key unique (name, address)
 );
+
+-- 공간 인덱스 생성 (검색 성능 최적화)
+create index pharmacies_location_idx on pharmacies using gist(location);
+
+-- 주변 약국 검색용 RPC 함수
+create or replace function get_nearby_pharmacies(
+  user_lat double precision,
+  user_lon double precision,
+  radius_meters double precision default 5000
+)
+returns table (
+  id uuid,
+  name text,
+  address text,
+  latitude double precision,
+  longitude double precision,
+  phone text,
+  hpid text,
+  distance double precision
+)
+language sql
+as $$
+  select
+    id, name, address, latitude, longitude, phone, hpid,
+    st_distance(location, st_point(user_lon, user_lat)::geography) as distance
+  from pharmacies
+  where st_dwithin(location, st_point(user_lon, user_lat)::geography, radius_meters)
+  order by distance;
+$$;
 
 -- 5. Favorite Pharmacies
 create table favorite_pharmacies (

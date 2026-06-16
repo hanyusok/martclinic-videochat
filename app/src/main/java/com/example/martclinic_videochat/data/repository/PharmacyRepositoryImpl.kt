@@ -1,15 +1,13 @@
 package com.example.martclinic_videochat.data.repository
 
-import com.example.martclinic_videochat.data.model.ExternalPharmacyResponse
 import com.example.martclinic_videochat.domain.model.MasterPharmacy
 import com.example.martclinic_videochat.domain.model.Pharmacy
 import com.example.martclinic_videochat.domain.repository.PharmacyRepository
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
-import io.ktor.client.request.parameter
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 
 class PharmacyRepositoryImpl @Inject constructor(
@@ -86,47 +84,40 @@ class PharmacyRepositoryImpl @Inject constructor(
     }
 
     override suspend fun fetchAndStoreNearbyPharmacies(lat: Double, lon: Double): Result<Unit> {
-        return try {
-            // 1. Fetch from external API
-            val externalPharmacies: List<ExternalPharmacyResponse> = client.get("api/pharmacies") {
-                parameter("lat", lat)
-                parameter("lng", lon) // Using common 'lng' parameter
-                parameter("lon", lon) // Keeping 'lon' for compatibility
-                parameter("radius", 10000) // 10km radius
-                parameter("limit", 100)
-            }.body()
-
-            // 2. Map to MasterPharmacy and insert into Supabase
-            val masterPharmacies = externalPharmacies.map {
-                MasterPharmacy(
-                    name = it.name,
-                    address = it.address,
-                    latitude = it.latitude,
-                    longitude = it.longitude,
-                    phone = it.phone
-                )
-            }
-
-            if (masterPharmacies.isNotEmpty()) {
-                // Using the lambda configuration for upsert in supabase-kt
-                postgrest["pharmacies"].upsert(masterPharmacies) {
-                    onConflict = "name,address"
-                }
-            }
-            
-            Result.success(Unit)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Result.failure(e)
-        }
+        // Since we are now using the full master database from pharm_db.csv,
+        // we no longer need to fetch from an external API per request.
+        return Result.success(Unit)
     }
 
     override suspend fun getNearbyPharmacies(lat: Double, lon: Double, radius: Double): List<Pharmacy> {
         return try {
-            // Increase range slightly to be safe (roughly 0.01 degree ~ 1.1km)
-            val degreeRange = (radius + 1000) / 111000.0
+            // Using RPC for spatial search via PostGIS
+            val response = postgrest.rpc(
+                "get_nearby_pharmacies",
+                buildJsonObject {
+                    put("user_lat", lat)
+                    put("user_lon", lon)
+                    put("radius_meters", radius)
+                }
+            )
+            val masterList = response.decodeList<MasterPharmacy>()
             
-            val masterList = postgrest["pharmacies"]
+            masterList.map { item ->
+                Pharmacy(
+                    id = item.id,
+                    patient_id = "", 
+                    pharmacy_name = item.name,
+                    address = item.address ?: "",
+                    latitude = item.latitude,
+                    longitude = item.longitude,
+                    phone = item.phone ?: ""
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback to basic filter if RPC fails
+            val degreeRange = (radius + 1000) / 111000.0
+            val fallback = postgrest["pharmacies"]
                 .select {
                     filter {
                         gte("latitude", lat - degreeRange)
@@ -134,25 +125,21 @@ class PharmacyRepositoryImpl @Inject constructor(
                         gte("longitude", lon - degreeRange)
                         lte("longitude", lon + degreeRange)
                     }
-                    limit(50) // Limit results for performance
+                    limit(50)
                 }
                 .decodeList<MasterPharmacy>()
             
-            // Map MasterPharmacy to Pharmacy (without patient_id for now)
-            masterList.map {
+            fallback.map { item ->
                 Pharmacy(
-                    id = it.id,
-                    patient_id = "", // Placeholder
-                    pharmacy_name = it.name,
-                    address = it.address ?: "",
-                    latitude = it.latitude,
-                    longitude = it.longitude,
-                    phone = it.phone ?: ""
+                    id = item.id,
+                    patient_id = "",
+                    pharmacy_name = item.name,
+                    address = item.address ?: "",
+                    latitude = item.latitude,
+                    longitude = item.longitude,
+                    phone = item.phone ?: ""
                 )
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
         }
     }
 

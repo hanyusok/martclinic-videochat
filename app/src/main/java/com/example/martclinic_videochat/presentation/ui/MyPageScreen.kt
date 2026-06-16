@@ -187,7 +187,7 @@ fun MyPageDashboard(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Patient Profiles Section
         item {
@@ -351,83 +351,82 @@ fun PatientProfileCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = if (patient.relationship == "본인") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Column {
                     Text(
                         text = patient.relationship,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         color = if (patient.relationship == "본인") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
                     )
                     Text(
                         text = "${patient.name} 님",
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    patient.clinic_patient_number?.let {
+                        Text(
+                            text = "번호: $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
                 }
                 Row {
-                    IconButton(onClick = onSyncClick) {
+                    IconButton(onClick = onSyncClick, modifier = Modifier.size(40.dp)) {
                         Icon(
                             imageVector = Icons.Default.Sync,
                             contentDescription = "EMR 동기화",
+                            modifier = Modifier.size(20.dp),
                             tint = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = onEditClick) {
+                    IconButton(onClick = onEditClick, modifier = Modifier.size(40.dp)) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "정보 수정",
+                            modifier = Modifier.size(20.dp),
                             tint = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-            }
-            
-            patient.clinic_patient_number?.let {
-                Text(
-                    text = "환자 번호: $it",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Phone,
-                    contentDescription = "전화번호",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = patient.phone,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Default.AccountBox,
-                    contentDescription = "주민등록번호",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    imageVector = Icons.Default.Phone,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = patient.phone,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.AccountBox,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
                 val maskedResident = if (patient.resident_number.contains("-")) {
                     val parts = patient.resident_number.split("-")
                     if (parts.size == 2) {
@@ -439,9 +438,9 @@ fun PatientProfileCard(
                     "******-*******"
                 }
                 Text(
-                    text = "주민번호: $maskedResident",
+                    text = maskedResident,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

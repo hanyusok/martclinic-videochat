@@ -10,5 +10,6 @@ data class MasterPharmacy(
     val latitude: Double,
     val longitude: Double,
     val phone: String? = null,
+    val hpid: String? = null,
     val created_at: String? = null
 )
