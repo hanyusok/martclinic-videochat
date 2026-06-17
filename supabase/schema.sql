@@ -44,6 +44,7 @@ create table pharmacies (
   latitude double precision,
   longitude double precision,
   phone text,
+  fax text,
   hpid text unique, -- 기관 식별 코드 (Upsert용)
   location geography(POINT, 4326), -- PostGIS 공간 데이터
   created_at timestamp with time zone default now(),
@@ -66,13 +67,14 @@ returns table (
   latitude double precision,
   longitude double precision,
   phone text,
+  fax text,
   hpid text,
   distance double precision
 )
 language sql
 as $$
   select
-    id, name, address, latitude, longitude, phone, hpid,
+    id, name, address, latitude, longitude, phone, fax, hpid,
     st_distance(location, st_point(user_lon, user_lat)::geography) as distance
   from pharmacies
   where st_dwithin(location, st_point(user_lon, user_lat)::geography, radius_meters)
@@ -88,6 +90,7 @@ create table favorite_pharmacies (
   latitude double precision,
   longitude double precision,
   phone text,
+  fax text,
   is_default boolean default false,
   created_at timestamp with time zone default now()
 );

@@ -49,10 +49,7 @@ class PharmacyViewModel @Inject constructor(
                 val lat = location?.latitude ?: 37.5665 // Fallback to Seoul City Hall
                 val lon = location?.longitude ?: 126.9780
                 
-                // Fetch and sync nearby pharmacies from external API
-                val syncResult = pharmacyRepository.fetchAndStoreNearbyPharmacies(lat, lon)
-                
-                // Fetch from our local master list after sync (10km radius)
+                // Fetch from our local master list (10km radius)
                 _nearbyPharmacies.value = pharmacyRepository.getNearbyPharmacies(lat, lon, 10000.0)
 
                 _pharmacies.value = pharmacyRepository.getAllPharmacies()
@@ -83,14 +80,42 @@ class PharmacyViewModel @Inject constructor(
         }
     }
 
-    fun addFavoritePharmacy(pharmacy: Pharmacy) {
+    fun toggleFavoritePharmacy(pharmacy: Pharmacy) {
         val patientId = _patient.value?.id ?: return
+        val existingFavorite = _pharmacies.value.find { 
+            it.pharmacy_name == pharmacy.pharmacy_name && it.address == pharmacy.address 
+        }
+
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val success = pharmacyRepository.addFavoritePharmacy(patientId, pharmacy)
+                val success = if (existingFavorite != null) {
+                    pharmacyRepository.removeFavoritePharmacy(existingFavorite.id ?: return@launch)
+                } else {
+                    pharmacyRepository.addFavoritePharmacy(patientId, pharmacy)
+                }
+
                 if (success) {
                     _pharmacies.value = pharmacyRepository.getAllPharmacies()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun updateFaxNumber(pharmacy: Pharmacy, newFax: String) {
+        val pharmacyId = pharmacy.id ?: return
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val success = pharmacyRepository.updatePharmacyFax(pharmacyId, newFax)
+                if (success) {
+                    _pharmacies.value = pharmacyRepository.getAllPharmacies()
+                    // Re-load nearby to see the update there too
+                    loadPatientAndPharmacies()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

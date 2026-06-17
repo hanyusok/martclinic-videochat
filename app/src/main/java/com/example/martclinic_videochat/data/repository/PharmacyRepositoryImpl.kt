@@ -2,26 +2,28 @@ package com.example.martclinic_videochat.data.repository
 
 import com.example.martclinic_videochat.domain.model.MasterPharmacy
 import com.example.martclinic_videochat.domain.model.Pharmacy
+import com.example.martclinic_videochat.domain.model.toPharmacy
 import com.example.martclinic_videochat.domain.repository.PharmacyRepository
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.query.Order
-import io.ktor.client.HttpClient
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import javax.inject.Inject
 
 class PharmacyRepositoryImpl @Inject constructor(
-    private val postgrest: Postgrest,
-    private val client: HttpClient
+    private val postgrest: Postgrest
 ) : PharmacyRepository {
 
     override suspend fun getAllPharmacies(): List<Pharmacy> {
         return try {
-            postgrest["favorite_pharmacies"]
+            val list = postgrest["favorite_pharmacies"]
                 .select {
                     order("pharmacy_name", Order.ASCENDING)
                 }
-                .decodeList()
+                .decodeList<Pharmacy>()
+            
+            // Filter to ensure no duplicates in the local UI list
+            list.distinctBy { it.pharmacy_name + it.address }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
@@ -83,12 +85,6 @@ class PharmacyRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun fetchAndStoreNearbyPharmacies(lat: Double, lon: Double): Result<Unit> {
-        // Since we are now using the full master database from pharm_db.csv,
-        // we no longer need to fetch from an external API per request.
-        return Result.success(Unit)
-    }
-
     override suspend fun getNearbyPharmacies(lat: Double, lon: Double, radius: Double): List<Pharmacy> {
         return try {
             // Using RPC for spatial search via PostGIS
@@ -101,18 +97,7 @@ class PharmacyRepositoryImpl @Inject constructor(
                 }
             )
             val masterList = response.decodeList<MasterPharmacy>()
-            
-            masterList.map { item ->
-                Pharmacy(
-                    id = item.id,
-                    patient_id = "", 
-                    pharmacy_name = item.name,
-                    address = item.address ?: "",
-                    latitude = item.latitude,
-                    longitude = item.longitude,
-                    phone = item.phone ?: ""
-                )
-            }
+            masterList.map { it.toPharmacy() }
         } catch (e: Exception) {
             e.printStackTrace()
             // Fallback to basic filter if RPC fails
@@ -129,17 +114,7 @@ class PharmacyRepositoryImpl @Inject constructor(
                 }
                 .decodeList<MasterPharmacy>()
             
-            fallback.map { item ->
-                Pharmacy(
-                    id = item.id,
-                    patient_id = "",
-                    pharmacy_name = item.name,
-                    address = item.address ?: "",
-                    latitude = item.latitude,
-                    longitude = item.longitude,
-                    phone = item.phone ?: ""
-                )
-            }
+            fallback.map { it.toPharmacy() }
         }
     }
 
@@ -148,6 +123,56 @@ class PharmacyRepositoryImpl @Inject constructor(
             postgrest["favorite_pharmacies"].insert(
                 pharmacy.copy(patient_id = patientId, id = null) // Ensure patient_id is set and let DB generate id
             )
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun removeFavoritePharmacy(pharmacyId: String): Boolean {
+        return try {
+            postgrest["favorite_pharmacies"].delete {
+                filter { eq("id", pharmacyId) }
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    override suspend fun updatePharmacyFax(pharmacyId: String, fax: String): Boolean {
+        return try {
+            // 1. First, find the pharmacy by ID to get its name and address (our unique keys)
+            // We search both tables because we don't know which ID was passed
+            val masterInfo = try {
+                postgrest["pharmacies"].select {
+                    filter { eq("id", pharmacyId) }
+                }.decodeSingle<MasterPharmacy>()
+            } catch (e: Exception) {
+                val favorite = postgrest["favorite_pharmacies"].select {
+                    filter { eq("id", pharmacyId) }
+                }.decodeSingle<Pharmacy>()
+                MasterPharmacy(name = favorite.pharmacy_name, address = favorite.address, latitude = favorite.latitude, longitude = favorite.longitude)
+            }
+
+            // 2. Update the master pharmacies table (Shared by everyone)
+            postgrest["pharmacies"].update(mapOf("fax" to fax)) {
+                filter {
+                    eq("name", masterInfo.name)
+                    eq("address", masterInfo.address ?: "")
+                }
+            }
+
+            // 3. Update all favorite entries matching this pharmacy to sync for ALL users
+            postgrest["favorite_pharmacies"].update(mapOf("fax" to fax)) {
+                filter {
+                    eq("pharmacy_name", masterInfo.name)
+                    eq("address", masterInfo.address ?: "")
+                }
+            }
+
             true
         } catch (e: Exception) {
             e.printStackTrace()

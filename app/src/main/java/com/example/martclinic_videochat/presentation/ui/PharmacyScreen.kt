@@ -11,10 +11,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.martclinic_videochat.domain.model.Pharmacy
+import com.example.martclinic_videochat.presentation.ui.components.PharmacyCard
 import com.example.martclinic_videochat.presentation.viewmodel.PharmacyViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,105 +76,29 @@ fun PharmacyScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(listToShow) { pharmacy ->
+                        items(listToShow) { item ->
+                            val favoriteVersion = pharmacies.find { 
+                                it.pharmacy_name == item.pharmacy_name && it.address == item.address 
+                            }
+                            val isFavorite = favoriteVersion != null
+                            
+                            // Use the favorite version if it exists to show the correct 'is_default' status
+                            val pharmacyToDisplay = favoriteVersion ?: item
+
                             PharmacyCard(
-                                pharmacy = pharmacy,
-                                isFavorite = selectedTab == 0 || pharmacies.any { it.pharmacy_name == pharmacy.pharmacy_name && it.address == pharmacy.address },
+                                pharmacy = pharmacyToDisplay,
+                                isFavorite = isFavorite,
                                 onFavoriteClick = {
-                                    viewModel.addFavoritePharmacy(pharmacy)
+                                    viewModel.toggleFavoritePharmacy(item)
                                 },
                                 onSetDefault = {
-                                    viewModel.toggleDefaultPharmacy(pharmacy, !pharmacy.is_default)
+                                    viewModel.toggleDefaultPharmacy(pharmacyToDisplay, !pharmacyToDisplay.is_default)
+                                },
+                                onUpdateFax = { newFax ->
+                                    viewModel.updateFaxNumber(pharmacyToDisplay, newFax)
                                 }
                             )
                         }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PharmacyCard(
-    pharmacy: Pharmacy,
-    isFavorite: Boolean,
-    onFavoriteClick: () -> Unit,
-    onSetDefault: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (pharmacy.is_default) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = pharmacy.pharmacy_name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (pharmacy.is_default) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Surface(
-                                color = MaterialTheme.colorScheme.primary,
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    text = "대표",
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
-                    Text(
-                        text = pharmacy.address,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                
-                IconButton(onClick = onFavoriteClick) {
-                    Icon(
-                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "즐겨찾기",
-                        tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Phone,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = pharmacy.phone, style = MaterialTheme.typography.bodyMedium)
-                }
-
-                if (isFavorite) {
-                    TextButton(onClick = onSetDefault) {
-                        Text(if (pharmacy.is_default) "대표 약국 해제" else "대표 약국으로 설정")
                     }
                 }
             }

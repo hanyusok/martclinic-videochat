@@ -11,6 +11,7 @@ data class Pharmacy(
     val latitude: Double,
     val longitude: Double,
     val phone: String,
+    val fax: String? = null,
     val is_default: Boolean = false,
     val created_at: String? = null
 )

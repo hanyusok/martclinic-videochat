@@ -10,8 +10,8 @@ Mart Clinic Video Chat is a professional telemedicine Android application design
 - **Identity Verification**: Secure integration with EMR systems for patient data verification.
 
 ### 💊 Digital Pharmacy Management
-- **GPS-Based Pharmacy Search**: Find pharmacies within a 10km radius using real-time device location.
-- **Auto-Sync**: Automatically fetches and caches nearby pharmacies from the WorldMoneyFace REST API to a local master list in Supabase.
+- **GPS-Based Pharmacy Search**: Find pharmacies within a 10km radius using real-time device location and PostGIS spatial indexing.
+- **Internal Master List**: Uses a pre-populated master database of 25,000+ pharmacies in Supabase for instant search.
 - **Favorites & Default**: Save frequently visited pharmacies and set a default for automatic prescription dispatch.
 
 ### 📄 Digital Prescriptions
