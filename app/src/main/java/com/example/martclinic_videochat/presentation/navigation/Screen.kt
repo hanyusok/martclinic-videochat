@@ -17,4 +17,7 @@ sealed interface Screen {
     
     @Serializable
     data object MyPage : Screen
+
+    @Serializable
+    data object AdminDashboard : Screen
 }

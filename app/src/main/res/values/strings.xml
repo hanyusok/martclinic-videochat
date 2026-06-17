@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">martclinic-videochat</string>
+    <string name="app_name">마트클리닉</string>
+    <string name="home_title">마트클리닉</string>
 </resources>

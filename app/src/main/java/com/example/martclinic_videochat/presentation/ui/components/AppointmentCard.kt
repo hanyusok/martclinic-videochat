@@ -80,7 +80,7 @@ fun AppointmentCard(
             }
 
             // Entry Button for ongoing consults
-            if (appointment.status in listOf("confirmed", "in_progress") && !appointment.meet_link.isNullOrBlank()) {
+            if (appointment.status in listOf("confirmed", Appointment.STATUS_IN_PROGRESS) && !appointment.meet_link.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = { onEnterConsultation?.invoke() },
@@ -93,7 +93,7 @@ fun AppointmentCard(
             }
 
             // Prescription View Button for completed consults
-            if (appointment.status == "completed") {
+            if (appointment.status == Appointment.STATUS_COMPLETED) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = { onViewPrescription?.invoke() },

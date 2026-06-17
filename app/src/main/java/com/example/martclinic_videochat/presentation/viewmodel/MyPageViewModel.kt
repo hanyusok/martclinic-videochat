@@ -3,7 +3,9 @@ package com.example.martclinic_videochat.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.martclinic_videochat.domain.model.Patient
+import com.example.martclinic_videochat.domain.model.UserProfile
 import com.example.martclinic_videochat.domain.repository.PatientRepository
+import com.example.martclinic_videochat.domain.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +25,7 @@ import com.example.martclinic_videochat.domain.repository.EmrRepository
 @HiltViewModel
 class MyPageViewModel @Inject constructor(
     private val patientRepository: PatientRepository,
+    private val userRepository: UserRepository,
     private val emrRepository: EmrRepository,
     private val auth: Auth
 ) : ViewModel() {
@@ -53,6 +56,9 @@ class MyPageViewModel @Inject constructor(
     private val _patient = MutableStateFlow<Patient?>(null)
     val patient: StateFlow<Patient?> = _patient.asStateFlow()
 
+    private val _userProfile = MutableStateFlow<UserProfile?>(null)
+    val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -75,6 +81,7 @@ class MyPageViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                _userProfile.value = userRepository.getCurrentUserProfile()
                 val list = patientRepository.getPatients()
                 _patients.value = list
                 _patient.value = list.find { it.relationship == "본인" }
@@ -168,6 +175,7 @@ class MyPageViewModel @Inject constructor(
         phoneInput: String,
         residentInput: String,
         relationshipInput: String = "본인",
+        skipEmrCheck: Boolean = false,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
@@ -175,12 +183,14 @@ class MyPageViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Identity Confirmation Step
-                val emrRecord = emrRepository.confirmIdentity(nameInput, residentInput)
-                if (emrRecord == null) {
-                    onError("병원 EMR 데이터에서 환자 정보를 확인할 수 없습니다. 정보를 다시 확인해 주세요.")
-                    _isLoading.value = false
-                    return@launch
+                var clinicPatientNumber: String? = null
+                
+                if (!skipEmrCheck) {
+                    // Identity Confirmation Step
+                    val emrRecord = emrRepository.confirmIdentity(nameInput, residentInput)
+                    if (emrRecord != null) {
+                        clinicPatientNumber = emrRecord.emr_patient_number?.toString()
+                    }
                 }
 
                 val newPatient = Patient(
@@ -189,7 +199,7 @@ class MyPageViewModel @Inject constructor(
                     phone = phoneInput,
                     resident_number = residentInput,
                     relationship = relationshipInput,
-                    clinic_patient_number = emrRecord.emr_patient_number?.toString()
+                    clinic_patient_number = clinicPatientNumber
                 )
                 val success = patientRepository.createPatient(newPatient)
                 if (success) {

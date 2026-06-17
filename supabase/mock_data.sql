@@ -4,11 +4,16 @@ TRUNCATE public.appointments CASCADE;
 TRUNCATE public.schedules CASCADE;
 TRUNCATE public.favorite_pharmacies CASCADE;
 TRUNCATE public.patients CASCADE;
+TRUNCATE public.profiles CASCADE;
 DELETE FROM auth.users WHERE email LIKE '%@martclinic.com' OR email LIKE '%@patient.com';
 
 -- Insert Doctor User
 INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES ('05219952-aa7d-4aea-9429-2d2c9c14c6d3', '00000000-0000-0000-0000-000000000000', 'doctor@martclinic.com', '$2a$10$wKkH9Q4mCdfu8B57d7Q.4Oa7YwA17Zk.6m.XzV5q4gYd3wK6m6d8e', now(), 'authenticated', 'authenticated', '{"provider": "email", "providers": ["email"]}', '{"name": "김의사", "role": "doctor"}', now(), now());
+
+-- Insert Doctor Profile
+INSERT INTO public.profiles (id, email, role)
+VALUES ('05219952-aa7d-4aea-9429-2d2c9c14c6d3', 'doctor@martclinic.com', 'doctor');
 
 -- Insert 19 Patient Users
 INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -49,6 +54,27 @@ INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confir
 VALUES ('d34a55e8-6da3-403f-b08a-55cd005f12de', '00000000-0000-0000-0000-000000000000', 'patient18@patient.com', '$2a$10$wKkH9Q4mCdfu8B57d7Q.4Oa7YwA17Zk.6m.XzV5q4gYd3wK6m6d8e', now(), 'authenticated', 'authenticated', '{"provider": "email", "providers": ["email"]}', '{"name": "양지아"}', now(), now());
 INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES ('9a99911f-0924-458f-8637-e219f456679e', '00000000-0000-0000-0000-000000000000', 'patient19@patient.com', '$2a$10$wKkH9Q4mCdfu8B57d7Q.4Oa7YwA17Zk.6m.XzV5q4gYd3wK6m6d8e', now(), 'authenticated', 'authenticated', '{"provider": "email", "providers": ["email"]}', '{"name": "배도윤"}', now(), now());
+
+-- Insert 19 Profiles for Patients
+INSERT INTO public.profiles (id, email, role) VALUES ('04d90700-5ed0-45db-ab77-bde1661ceb6b', 'patient1@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('d16386c8-936d-4143-a5bd-0788435a4a02', 'patient2@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('4646066e-9a6b-43d6-8472-7d4561bfee34', 'patient3@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('8f7e9e18-fcdd-4fae-a838-f653d1741f80', 'patient4@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('3e59cbcc-1c97-477f-bc7c-c284900fdc06', 'patient5@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('54dc8a03-fd25-46cc-aef2-a73e7dadcb17', 'patient6@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('cc63462a-f2cb-44e5-9202-d18d6cc458df', 'patient7@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('9d28df5a-8c20-4fe4-b492-ad7630516941', 'patient8@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('c5a73426-0282-4258-8534-06e54664dc58', 'patient9@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('1cb39e4a-4b6a-4bd9-99bf-57d41baa9b33', 'patient10@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('1c691e1d-ddc2-4f72-b1d6-fa4bd60777ca', 'patient11@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('b474ebb7-d82c-479e-a5f5-e4a9e3a7618f', 'patient12@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('6b6c512d-a27e-441d-84da-b44ca74f08c9', 'patient13@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('0ced4a03-f28b-4afc-aa2d-552c54282a54', 'patient14@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('d7e50cf0-6d8f-4696-ac5d-0322f110c1fa', 'patient15@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('6a97c0d3-b8b4-469c-8ed5-e69af8fa9732', 'patient16@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('ff219862-4e57-466f-a6e5-7617e3cb6be7', 'patient17@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('d34a55e8-6da3-403f-b08a-55cd005f12de', 'patient18@patient.com', 'patient');
+INSERT INTO public.profiles (id, email, role) VALUES ('9a99911f-0924-458f-8637-e219f456679e', 'patient19@patient.com', 'patient');
 
 -- Insert 19 Patient Profiles
 INSERT INTO public.patients (id, user_id, name, phone, resident_last7, clinic_patient_number, created_at)

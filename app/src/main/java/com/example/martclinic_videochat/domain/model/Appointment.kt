@@ -18,6 +18,14 @@ data class Appointment(
     val payment_amount: Int? = null,
     val created_at: String? = null
 ) {
+    companion object {
+        val ACTIVE_STATUSES = listOf("waiting", "calling", "in_progress")
+        const val STATUS_COMPLETED = "completed"
+        const val STATUS_CALLING = "calling"
+        const val STATUS_WAITING = "waiting"
+        const val STATUS_IN_PROGRESS = "in_progress"
+    }
+
     val statusText: String
         get() = when (status) {
             "waiting" -> "대기 중"

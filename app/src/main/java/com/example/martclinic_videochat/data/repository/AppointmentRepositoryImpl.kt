@@ -20,7 +20,28 @@ class AppointmentRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getAllAppointments(): List<Appointment> {
+        return try {
+            postgrest["appointments"]
+                .select()
+                .decodeList()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     override suspend fun createAppointment(appointment: Appointment) {
         postgrest["appointments"].insert(appointment)
+    }
+
+    override suspend fun updateAppointmentStatus(id: String, status: String) {
+        try {
+            postgrest["appointments"].update(mapOf("status" to status)) {
+                filter { eq("id", id) }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }

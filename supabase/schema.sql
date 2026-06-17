@@ -1,3 +1,43 @@
+-- 0. User Roles and Profiles
+create type user_role as enum ('admin', 'doctor', 'patient');
+
+create table profiles (
+  id uuid primary key references auth.users on delete cascade,
+  email text,
+  role user_role not null default 'patient',
+  updated_at timestamp with time zone default now()
+);
+
+-- Enable RLS on profiles
+alter table profiles enable row level security;
+
+-- Profiles Policies
+create policy "Public profiles are viewable by everyone" on profiles
+  for select using (true);
+
+create policy "Users can update their own profiles" on profiles
+  for update to authenticated
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+
+-- Trigger to create profile on signup
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, email, role)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'role', 'patient')::public.user_role
+  );
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
 -- 1. Patients
 create table patients (
   id uuid primary key default gen_random_uuid(),
@@ -10,15 +50,14 @@ create table patients (
   created_at timestamp with time zone default now()
 );
 
--- 2. Doctor Schedules
+-- 2. Doctor Schedules (Availability Management)
 create table schedules (
   id uuid primary key default gen_random_uuid(),
-  doctor_id uuid, -- 나중에 확장
+  doctor_id uuid, -- For future multi-doctor support
   date date not null,
   start_time time not null,
   end_time time not null,
   is_available boolean default true,
-  booked_by uuid references patients(id),
   created_at timestamp with time zone default now()
 );
 

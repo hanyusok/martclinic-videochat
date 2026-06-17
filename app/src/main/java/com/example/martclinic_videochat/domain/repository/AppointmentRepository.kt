@@ -4,5 +4,7 @@ import com.example.martclinic_videochat.domain.model.Appointment
 
 interface AppointmentRepository {
     suspend fun getAppointments(patientId: String): List<Appointment>
+    suspend fun getAllAppointments(): List<Appointment>
     suspend fun createAppointment(appointment: Appointment)
+    suspend fun updateAppointmentStatus(id: String, status: String)
 }

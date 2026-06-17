@@ -16,12 +16,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.martclinic_videochat.R
 import com.example.martclinic_videochat.domain.model.Appointment
+import com.example.martclinic_videochat.presentation.navigation.Screen
 import com.example.martclinic_videochat.presentation.ui.components.AppointmentCard
 import com.example.martclinic_videochat.presentation.viewmodel.HomeViewModel
 import com.example.martclinic_videochat.util.MeetUtil
@@ -29,25 +34,38 @@ import com.example.martclinic_videochat.util.MeetUtil
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    onNavigateToAdmin: () -> Unit = {}
 ) {
-    val patient by viewModel.patient.collectAsState()
-    val appointments by viewModel.appointments.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val patient by viewModel.patient.collectAsStateWithLifecycle()
+    val appointments by viewModel.appointments.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val isAdmin by viewModel.isAdmin.collectAsStateWithLifecycle()
+    val activeStandby by viewModel.activeStandby.collectAsStateWithLifecycle()
+    val otherAppointments by viewModel.otherAppointments.collectAsStateWithLifecycle()
+
     val context = LocalContext.current
 
-    // ASAP Logic: Find the active standby appointment
-    val activeStandby = appointments.find { it.status in listOf("waiting", "calling", "in_progress") }
+    // Admin Auto-Navigation Trigger
+    LaunchedEffect(isAdmin) {
+        if (isAdmin) {
+            onNavigateToAdmin()
+        }
+    }
     
     // Statistics
-    val totalCount = appointments.size
-    val completedCount = appointments.count { it.status == "completed" }
-    val activeCount = appointments.count { it.status in listOf("waiting", "calling", "in_progress") }
+    val stats = remember(appointments) {
+        object {
+            val total = appointments.size
+            val completed = appointments.count { it.status == Appointment.STATUS_COMPLETED }
+            val active = appointments.count { it.status in Appointment.ACTIVE_STATUSES }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("마트클리닉", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { viewModel.loadActivePatientAndAppointments() }) {
                         Icon(imageVector = Icons.Default.Refresh, contentDescription = "새로고침")
@@ -73,7 +91,7 @@ fun HomeScreen(
 
                 // 2. ASAP Standby Status Card (High Priority)
                 activeStandby?.let { standby ->
-                    item {
+                    item(key = "active_standby") {
                         StandbyStatusCard(
                             appointment = standby,
                             onJoinCall = {
@@ -87,7 +105,7 @@ fun HomeScreen(
 
                 // 3. Stats Row
                 item {
-                    StatsRow(total = totalCount, active = activeCount, completed = completedCount)
+                    StatsRow(total = stats.total, active = stats.active, completed = stats.completed)
                 }
 
                 // 4. Section Title
@@ -100,12 +118,15 @@ fun HomeScreen(
                     )
                 }
 
-                if (appointments.isEmpty() && !isLoading) {
+                if (otherAppointments.isEmpty() && !isLoading) {
                     item {
                         EmptyAppointmentsCard()
                     }
                 } else {
-                    items(appointments.filter { it.id != activeStandby?.id }) { appointment ->
+                    items(
+                        items = otherAppointments,
+                        key = { it.id ?: it.hashCode() }
+                    ) { appointment ->
                         AppointmentCard(
                             appointment = appointment,
                             onEnterConsultation = {
@@ -130,7 +151,7 @@ fun StandbyStatusCard(
     appointment: Appointment,
     onJoinCall: () -> Unit
 ) {
-    val isCalling = appointment.status == "calling"
+    val isCalling = appointment.status == Appointment.STATUS_CALLING
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -209,7 +230,7 @@ fun StandbyStatusCard(
 
             Button(
                 onClick = onJoinCall,
-                enabled = isCalling || appointment.status == "in_progress",
+                enabled = isCalling || appointment.status == Appointment.STATUS_IN_PROGRESS,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -269,7 +290,7 @@ fun WelcomeBanner(patientName: String) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(gradient)
-                .padding(24.dp)
+                .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
             Column {
                 Text(
@@ -336,5 +357,13 @@ fun StatCard(title: String, count: Int, modifier: Modifier = Modifier, isHighlig
                         else MaterialTheme.colorScheme.onSurface
             )
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun WelcomeBannerPreview() {
+    MaterialTheme {
+        WelcomeBanner(patientName = "홍길동")
     }
 }

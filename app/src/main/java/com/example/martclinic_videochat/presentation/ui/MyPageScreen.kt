@@ -24,7 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.window.Dialog
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import com.example.martclinic_videochat.domain.model.Patient
 import com.example.martclinic_videochat.presentation.viewmodel.MyPageViewModel
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -32,13 +33,21 @@ import io.github.jan.supabase.auth.status.SessionStatus
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MyPageScreen(
-    viewModel: MyPageViewModel = hiltViewModel()
+    viewModel: MyPageViewModel = hiltViewModel(),
+    onNavigateToAdmin: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val patient by viewModel.patient.collectAsState()
     val patients by viewModel.patients.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val sessionStatus by viewModel.sessionStatus.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+
+    LaunchedEffect(userProfile) {
+        if (userProfile?.role == com.example.martclinic_videochat.domain.model.UserRole.ADMIN) {
+            onNavigateToAdmin()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -48,7 +57,7 @@ fun MyPageScreen(
                     if (sessionStatus is SessionStatus.Authenticated) {
                         IconButton(onClick = { viewModel.signOut() }) {
                             Icon(
-                                imageVector = Icons.Default.ExitToApp,
+                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                                 contentDescription = "로그아웃",
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -116,12 +125,14 @@ fun MyPageScreen(
                     } else if (!isLoading) {
                         ProfileRegistrationForm(
                             viewModel = viewModel,
-                            onSubmit = { name, phone, resident ->
+                            onCancel = { viewModel.signOut() },
+                            onSubmit = { name, phone, resident, skipEmr ->
                                 viewModel.createPatientProfile(
                                     nameInput = name,
                                     phoneInput = phone,
                                     residentInput = resident,
                                     relationshipInput = "본인",
+                                    skipEmrCheck = skipEmr,
                                     onSuccess = {
                                         Toast.makeText(context, "환자 정보가 등록되었습니다.", Toast.LENGTH_SHORT).show()
                                     },
@@ -449,7 +460,8 @@ fun PatientProfileCard(
 
 @Composable
 fun ProfileRegistrationForm(
-    onSubmit: (String, String, String) -> Unit,
+    onCancel: () -> Unit,
+    onSubmit: (String, String, String, Boolean) -> Unit,
     viewModel: MyPageViewModel // ViewModel passed from parent
 ) {
     var name by remember { mutableStateOf("") }
@@ -643,19 +655,29 @@ fun ProfileRegistrationForm(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
-            onClick = {
-                if (isNameValid && isPhoneValid && isResidentValid) {
-                    onSubmit(name, phone, residentNumber)
-                }
-            },
-            enabled = isNameValid && isPhoneValid && isResidentValid,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("정보 등록 및 완료", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Cancel", fontWeight = FontWeight.Bold)
+            }
+            Button(
+                onClick = {
+                    if (isNameValid && isPhoneValid && isResidentValid) {
+                        onSubmit(name, phone, residentNumber, false)
+                    }
+                },
+                enabled = isNameValid && isPhoneValid && isResidentValid,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1.5f)
+            ) {
+                Text("Save", fontWeight = FontWeight.Bold)
+            }
         }
     }
 
@@ -722,10 +744,24 @@ fun ProfileRegistrationForm(
                             }
                         } else {
                             Text(
-                                text = "입력하신 이름으로 등록된 환자가 병원 데이터베이스에 존재하지 않습니다.",
+                                text = "입력하신 이름으로 등록된 환자가 병원 데이터베이스에 존재하지 않습니다. 정보를 직접 입력하여 등록하시겠습니까?",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            
+                            Button(
+                                onClick = {
+                                    if (isNameValid && isPhoneValid && isResidentValid) {
+                                        onSubmit(name, phone, residentNumber, true)
+                                        showEmrSearchDialog = false
+                                    }
+                                },
+                                enabled = isNameValid && isPhoneValid && isResidentValid,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("기록 없이 바로 저장")
+                            }
                         }
                     }
 
@@ -1063,10 +1099,24 @@ fun PatientProfileEditDialog(
                             }
                         } else {
                             Text(
-                                text = "입력하신 이름으로 등록된 환자가 병원 데이터베이스에 존재하지 않습니다.",
+                                text = "입력하신 이름으로 등록된 환자가 병원 데이터베이스에 존재하지 않습니다. 정보를 직접 입력하여 등록하시겠습니까?",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            
+                            Button(
+                                onClick = {
+                                    if (isNameValid && isPhoneValid && isResidentValid) {
+                                        onConfirm(name, phone, residentNumber, relationship)
+                                        showEmrSearchDialog = false
+                                    }
+                                },
+                                enabled = isNameValid && isPhoneValid && isResidentValid,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("기록 없이 바로 저장")
+                            }
                         }
                     }
 
@@ -1119,7 +1169,7 @@ fun AuthScreen(
         }
 
         item {
-            TabRow(
+            SecondaryTabRow(
                 selectedTabIndex = if (isLoginTab) 0 else 1,
                 modifier = Modifier.fillMaxWidth()
             ) {

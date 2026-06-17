@@ -17,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.martclinic_videochat.presentation.navigation.Screen
+import com.example.martclinic_videochat.presentation.ui.admin.AdminDashboardScreen
 
 data class TopLevelRoute<T : Any>(
     val name: String,
@@ -37,25 +38,28 @@ fun MainScreen() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val showBottomBar = currentDestination?.hierarchy?.any { it.hasRoute(Screen.AdminDashboard::class) } != true
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                TOP_LEVEL_ROUTES.forEach { topLevelRoute ->
-                    NavigationBarItem(
-                        icon = { Icon(topLevelRoute.icon, contentDescription = topLevelRoute.name) },
-                        label = { Text(topLevelRoute.name) },
-                        selected = currentDestination?.hierarchy?.any { it.hasRoute(topLevelRoute.route::class) } == true,
-                        onClick = {
-                            navController.navigate(topLevelRoute.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (showBottomBar) {
+                NavigationBar {
+                    TOP_LEVEL_ROUTES.forEach { topLevelRoute ->
+                        NavigationBarItem(
+                            icon = { Icon(topLevelRoute.icon, contentDescription = topLevelRoute.name) },
+                            label = { Text(topLevelRoute.name) },
+                            selected = currentDestination?.hierarchy?.any { it.hasRoute(topLevelRoute.route::class) } == true,
+                            onClick = {
+                                navController.navigate(topLevelRoute.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -66,7 +70,13 @@ fun MainScreen() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable<Screen.Home> {
-                HomeScreen()
+                HomeScreen(
+                    onNavigateToAdmin = {
+                        navController.navigate(Screen.AdminDashboard) {
+                            popUpTo(Screen.Home) { inclusive = true }
+                        }
+                    }
+                )
             }
             composable<Screen.Booking> {
                 BookingScreen()
@@ -78,7 +88,22 @@ fun MainScreen() {
                 HistoryScreen()
             }
             composable<Screen.MyPage> {
-                MyPageScreen()
+                MyPageScreen(
+                    onNavigateToAdmin = {
+                        navController.navigate(Screen.AdminDashboard) {
+                            popUpTo(Screen.Home) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable<Screen.AdminDashboard> {
+                AdminDashboardScreen(
+                    onExitAdmin = {
+                        navController.navigate(Screen.Home) {
+                            popUpTo(Screen.Home) { inclusive = true }
+                        }
+                    }
+                )
             }
         }
     }
