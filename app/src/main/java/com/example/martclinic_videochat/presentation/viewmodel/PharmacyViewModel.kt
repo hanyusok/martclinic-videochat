@@ -33,10 +33,6 @@ class PharmacyViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    init {
-        loadPatientAndPharmacies()
-    }
-
     fun loadPatientAndPharmacies() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -46,8 +42,11 @@ class PharmacyViewModel @Inject constructor(
                 
                 // Get real device location
                 val location = locationHelper.getCurrentLocation()
-                val lat = location?.latitude ?: 37.5665 // Fallback to Seoul City Hall
-                val lon = location?.longitude ?: 126.9780
+                val lat = location?.latitude ?: 37.0076786 // Fallback to Lotte Mart Gongdo, Anseong
+                val lon = location?.longitude ?: 127.1993728
+                
+                // Fetch and sync nearby pharmacies from external API (Method currently removed/unimplemented)
+                // pharmacyRepository.fetchAndStoreNearbyPharmacies(lat, lon)
                 
                 // Fetch from our local master list (10km radius)
                 _nearbyPharmacies.value = pharmacyRepository.getNearbyPharmacies(lat, lon, 10000.0)

@@ -35,7 +35,8 @@ import com.example.martclinic_videochat.util.MeetUtil
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
-    onNavigateToAdmin: () -> Unit = {}
+    onNavigateToAdmin: () -> Unit = {},
+    onNavigateToBooking: () -> Unit = {}
 ) {
     val patient by viewModel.patient.collectAsStateWithLifecycle()
     val appointments by viewModel.appointments.collectAsStateWithLifecycle()
@@ -71,6 +72,15 @@ fun HomeScreen(
                         Icon(imageVector = Icons.Default.Refresh, contentDescription = "새로고침")
                     }
                 }
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onNavigateToBooking,
+                icon = { Icon(Icons.Default.DateRange, contentDescription = "진료 예약") },
+                text = { Text("진료 예약", fontWeight = FontWeight.Bold) },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     ) { padding ->

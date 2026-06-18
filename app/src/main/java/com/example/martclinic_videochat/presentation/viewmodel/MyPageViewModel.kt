@@ -312,4 +312,31 @@ class MyPageViewModel @Inject constructor(
             }
         }
     }
+    fun syncPatientWithEmrDirectly(patient: Patient, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                // EMR 연동 시 이름과 주민번호 전체를 사용하여 동명이인 노출 위험을 차단합니다.
+                val emrRecord = emrRepository.confirmIdentity(patient.name, patient.resident_number)
+                if (emrRecord != null) {
+                    val updated = patient.copy(
+                        name = emrRecord.name ?: patient.name,
+                        phone = emrRecord.phone ?: patient.phone,
+                        resident_number = emrRecord.resident_number ?: patient.resident_number,
+                        clinic_patient_number = emrRecord.emr_patient_number?.toString() ?: patient.clinic_patient_number
+                    )
+                    patientRepository.updatePatient(updated)
+                    loadPatientInfo()
+                    onSuccess()
+                } else {
+                    onError("방문 기록에서 일치하는 환자 정보를 찾을 수 없습니다.")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onError("방문 기록 연동 중 오류가 발생했습니다.")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
 }

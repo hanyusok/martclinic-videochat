@@ -33,7 +33,7 @@ object NetworkModule {
                 level = LogLevel.INFO
             }
             defaultRequest {
-                url("https://api.worldmoneyface.com/")
+                url("https://api.calldoctor.co.kr/")
             }
         }
     }

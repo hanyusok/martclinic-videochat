@@ -27,7 +27,6 @@ data class TopLevelRoute<T : Any>(
 
 val TOP_LEVEL_ROUTES = listOf(
     TopLevelRoute("홈", Screen.Home, Icons.Default.Home),
-    TopLevelRoute("예약", Screen.Booking, Icons.Default.DateRange),
     TopLevelRoute("약국", Screen.Pharmacy, Icons.Default.Place),
     TopLevelRoute("기록", Screen.History, Icons.Default.List),
     TopLevelRoute("마이", Screen.MyPage, Icons.Default.Person)
@@ -75,6 +74,9 @@ fun MainScreen() {
                         navController.navigate(Screen.AdminDashboard) {
                             popUpTo(Screen.Home) { inclusive = true }
                         }
+                    },
+                    onNavigateToBooking = {
+                        navController.navigate(Screen.Booking)
                     }
                 )
             }

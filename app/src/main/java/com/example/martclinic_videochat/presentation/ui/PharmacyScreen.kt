@@ -15,6 +15,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.example.martclinic_videochat.domain.model.Pharmacy
 import com.example.martclinic_videochat.presentation.ui.components.PharmacyCard
 import com.example.martclinic_videochat.presentation.viewmodel.PharmacyViewModel
@@ -29,6 +34,30 @@ fun PharmacyScreen(
     val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
+
+    val locationPermissions = arrayOf(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    )
+    
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+        onResult = { permissions ->
+            viewModel.loadPatientAndPharmacies()
+        }
+    )
+
+    LaunchedEffect(Unit) {
+        val hasFine = ContextCompat.checkSelfPermission(context, locationPermissions[0]) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(context, locationPermissions[1]) == PackageManager.PERMISSION_GRANTED
+        
+        if (!hasFine && !hasCoarse) {
+            launcher.launch(locationPermissions)
+        } else {
+            viewModel.loadPatientAndPharmacies()
+        }
+    }
 
     Scaffold(
         topBar = {
