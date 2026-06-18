@@ -44,4 +44,19 @@ class AppointmentRepositoryImpl @Inject constructor(
             e.printStackTrace()
         }
     }
+
+    override suspend fun updateAppointmentDetails(id: String, status: String, meetLink: String?, paymentAmount: Int?) {
+        try {
+            val updates = mutableMapOf<String, Any?>(
+                "status" to status,
+                "meet_link" to meetLink,
+                "payment_amount" to paymentAmount
+            )
+            postgrest["appointments"].update(updates) {
+                filter { eq("id", id) }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }

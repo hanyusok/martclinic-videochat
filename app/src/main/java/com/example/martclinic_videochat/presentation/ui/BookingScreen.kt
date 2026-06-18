@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FlashOn
@@ -29,6 +30,7 @@ import com.example.martclinic_videochat.presentation.viewmodel.BookingViewModel
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BookingScreen(
+    onBack: () -> Unit = {},
     viewModel: BookingViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -45,6 +47,7 @@ fun BookingScreen(
             Toast.makeText(context, "대기 신청이 완료되었습니다. 홈에서 순서를 확인해주세요.", Toast.LENGTH_LONG).show()
             symptomsText = ""
             viewModel.resetBookingStatus()
+            onBack()
         } else if (bookingSuccess == false) {
             Toast.makeText(context, "신청에 실패했습니다. 다시 시도해 주세요.", Toast.LENGTH_SHORT).show()
             viewModel.resetBookingStatus()
@@ -53,7 +56,14 @@ fun BookingScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("진료 접수 (ASAP)", fontWeight = FontWeight.Bold) })
+            TopAppBar(
+                title = { Text("진료 접수 (ASAP)", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기")
+                    }
+                }
+            )
         }
     ) { paddingValues ->
         Box(

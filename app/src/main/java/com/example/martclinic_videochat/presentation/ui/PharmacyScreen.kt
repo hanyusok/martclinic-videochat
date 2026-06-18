@@ -20,6 +20,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import android.widget.Toast
 import com.example.martclinic_videochat.domain.model.Pharmacy
 import com.example.martclinic_videochat.presentation.ui.components.PharmacyCard
 import com.example.martclinic_videochat.presentation.viewmodel.PharmacyViewModel
@@ -32,8 +33,16 @@ fun PharmacyScreen(
     val pharmacies by viewModel.pharmacies.collectAsState()
     val nearbyPharmacies by viewModel.nearbyPharmacies.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val patient by viewModel.patient.collectAsState()
+    val isLoggedIn = patient != null
 
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(isLoggedIn) {
+        if (!isLoggedIn) {
+            selectedTab = 1
+        }
+    }
     val context = LocalContext.current
 
     val locationPermissions = arrayOf(
@@ -71,17 +80,19 @@ fun PharmacyScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            TabRow(selectedTabIndex = selectedTab) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    text = { Text("내 단골 약국") }
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = { Text("주변 약국 검색") }
-                )
+            if (isLoggedIn) {
+                TabRow(selectedTabIndex = selectedTab) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("내 단골 약국") }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("주변 약국 검색") }
+                    )
+                }
             }
 
             if (isLoading) {
@@ -117,14 +128,27 @@ fun PharmacyScreen(
                             PharmacyCard(
                                 pharmacy = pharmacyToDisplay,
                                 isFavorite = isFavorite,
+                                isLoggedIn = isLoggedIn,
                                 onFavoriteClick = {
-                                    viewModel.toggleFavoritePharmacy(item)
+                                    if (isLoggedIn) {
+                                        viewModel.toggleFavoritePharmacy(item)
+                                    } else {
+                                        Toast.makeText(context, "로그인이 필요한 서비스입니다.", Toast.LENGTH_SHORT).show()
+                                    }
                                 },
                                 onSetDefault = {
-                                    viewModel.toggleDefaultPharmacy(pharmacyToDisplay, !pharmacyToDisplay.is_default)
+                                    if (isLoggedIn) {
+                                        viewModel.toggleDefaultPharmacy(pharmacyToDisplay, !pharmacyToDisplay.is_default)
+                                    } else {
+                                        Toast.makeText(context, "로그인이 필요한 서비스입니다.", Toast.LENGTH_SHORT).show()
+                                    }
                                 },
                                 onUpdateFax = { newFax ->
-                                    viewModel.updateFaxNumber(pharmacyToDisplay, newFax)
+                                    if (isLoggedIn) {
+                                        viewModel.updateFaxNumber(pharmacyToDisplay, newFax)
+                                    } else {
+                                        Toast.makeText(context, "로그인이 필요한 서비스입니다.", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             )
                         }

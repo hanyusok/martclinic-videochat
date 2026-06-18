@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.martclinic_videochat.domain.model.AdminStats
 import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.model.Patient
+import com.example.martclinic_videochat.domain.model.Pharmacy
 import com.example.martclinic_videochat.domain.model.UserProfile
 import com.example.martclinic_videochat.domain.repository.AppointmentRepository
 import com.example.martclinic_videochat.domain.repository.PatientRepository
+import com.example.martclinic_videochat.domain.repository.PharmacyRepository
 import com.example.martclinic_videochat.domain.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.jan.supabase.auth.Auth
@@ -24,6 +26,7 @@ import javax.inject.Inject
 class AdminViewModel @Inject constructor(
     private val appointmentRepository: AppointmentRepository,
     private val patientRepository: PatientRepository,
+    private val pharmacyRepository: PharmacyRepository,
     private val userRepository: UserRepository,
     private val auth: Auth
 ) : ViewModel() {
@@ -36,6 +39,12 @@ class AdminViewModel @Inject constructor(
 
     private val _allPatients = MutableStateFlow<List<Patient>>(emptyList())
     val allPatients: StateFlow<List<Patient>> = _allPatients.asStateFlow()
+
+    private val _masterPharmacies = MutableStateFlow<List<Pharmacy>>(emptyList())
+    val masterPharmacies: StateFlow<List<Pharmacy>> = _masterPharmacies.asStateFlow()
+
+    private val _selectedPatientFavorites = MutableStateFlow<List<Pharmacy>>(emptyList())
+    val selectedPatientFavorites: StateFlow<List<Pharmacy>> = _selectedPatientFavorites.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -61,6 +70,7 @@ class AdminViewModel @Inject constructor(
                 _currentUserProfile.value = userRepository.getCurrentUserProfile()
                 _allPatients.value = patientRepository.getPatients()
                 _allAppointments.value = appointmentRepository.getAllAppointments()
+                _masterPharmacies.value = pharmacyRepository.getMasterPharmacies()
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -78,7 +88,114 @@ class AdminViewModel @Inject constructor(
     fun updateStatus(appointmentId: String, newStatus: String) {
         viewModelScope.launch {
             appointmentRepository.updateAppointmentStatus(appointmentId, newStatus)
-            loadDashboardData() // Refresh
+            loadDashboardData()
+        }
+    }
+
+    fun updateAppointmentDetails(appointmentId: String, status: String, meetLink: String?, paymentAmount: Int?) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                appointmentRepository.updateAppointmentDetails(appointmentId, status, meetLink, paymentAmount)
+                loadDashboardData()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun loadPatientFavorites(patientId: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                _selectedPatientFavorites.value = pharmacyRepository.getFavoritePharmaciesForPatient(patientId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun addPatientFavoritePharmacy(patientId: String, pharmacy: Pharmacy) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val success = pharmacyRepository.addFavoritePharmacy(patientId, pharmacy)
+                if (success) {
+                    loadPatientFavorites(patientId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun removePatientFavoritePharmacy(patientId: String, pharmacyId: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val success = pharmacyRepository.removeFavoritePharmacy(pharmacyId)
+                if (success) {
+                    loadPatientFavorites(patientId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun togglePatientDefaultPharmacy(patientId: String, pharmacyId: String, isDefault: Boolean) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val success = pharmacyRepository.setPharmacyDefault(pharmacyId, patientId, isDefault)
+                if (success) {
+                    loadPatientFavorites(patientId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun updatePatientProfile(updatedPatient: Patient) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val success = patientRepository.updatePatient(updatedPatient)
+                if (success) {
+                    loadDashboardData()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun deletePatientProfile(patientId: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val success = patientRepository.deletePatient(patientId)
+                if (success) {
+                    loadDashboardData()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 }

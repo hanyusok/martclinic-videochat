@@ -4,6 +4,7 @@ import com.example.martclinic_videochat.domain.model.Pharmacy
 
 interface PharmacyRepository {
     suspend fun getAllPharmacies(): List<Pharmacy>
+    suspend fun getFavoritePharmaciesForPatient(patientId: String): List<Pharmacy>
     suspend fun getDefaultPharmacy(patientId: String): Pharmacy?
     suspend fun getPharmacyById(id: String): Pharmacy?
     suspend fun setPharmacyDefault(pharmacyId: String, patientId: String, isDefault: Boolean): Boolean
@@ -12,4 +13,5 @@ interface PharmacyRepository {
     suspend fun addFavoritePharmacy(patientId: String, pharmacy: Pharmacy): Boolean
     suspend fun removeFavoritePharmacy(pharmacyId: String): Boolean
     suspend fun updatePharmacyFax(pharmacyId: String, fax: String): Boolean
+    suspend fun getMasterPharmacies(): List<Pharmacy>
 }

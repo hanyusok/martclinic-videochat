@@ -24,12 +24,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.martclinic_videochat.domain.model.AdminStats
 import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.model.Patient
+import com.example.martclinic_videochat.domain.model.Pharmacy
 import com.example.martclinic_videochat.domain.model.UserProfile
 import com.example.martclinic_videochat.presentation.viewmodel.AdminViewModel
 import com.example.martclinic_videochat.ui.theme.MartclinicvideochatTheme
 import com.example.martclinic_videochat.util.MeetUtil
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import android.widget.Toast
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -44,15 +46,28 @@ fun AdminDashboardScreen(
     val patients by viewModel.allPatients.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val currentUserProfile by viewModel.currentUserProfile.collectAsStateWithLifecycle()
+    val selectedPatientFavorites by viewModel.selectedPatientFavorites.collectAsStateWithLifecycle()
+    val masterPharmacies by viewModel.masterPharmacies.collectAsStateWithLifecycle()
 
     AdminDashboardScreenContent(
         stats = stats,
         appointments = appointments,
         patients = patients,
+        selectedPatientFavorites = selectedPatientFavorites,
+        masterPharmacies = masterPharmacies,
         isLoading = isLoading,
         currentUserProfile = currentUserProfile,
         onRefresh = { viewModel.loadDashboardData() },
         onUpdateStatus = { id, status -> viewModel.updateStatus(id, status) },
+        onUpdateAppointmentDetails = { id, status, meetLink, paymentAmount ->
+            viewModel.updateAppointmentDetails(id, status, meetLink, paymentAmount)
+        },
+        onLoadPatientFavorites = { patientId -> viewModel.loadPatientFavorites(patientId) },
+        onAddPatientFavorite = { patientId, pharmacy -> viewModel.addPatientFavoritePharmacy(patientId, pharmacy) },
+        onRemovePatientFavorite = { patientId, pharmacyId -> viewModel.removePatientFavoritePharmacy(patientId, pharmacyId) },
+        onTogglePatientDefault = { patientId, pharmacyId, isDefault -> viewModel.togglePatientDefaultPharmacy(patientId, pharmacyId, isDefault) },
+        onUpdatePatientProfile = { patient -> viewModel.updatePatientProfile(patient) },
+        onDeletePatientProfile = { patientId -> viewModel.deletePatientProfile(patientId) },
         onExitAdmin = onExitAdmin,
         onSignOut = { viewModel.signOut() }
     )
@@ -64,10 +79,19 @@ fun AdminDashboardScreenContent(
     stats: AdminStats,
     appointments: List<Appointment>,
     patients: List<Patient>,
+    selectedPatientFavorites: List<Pharmacy>,
+    masterPharmacies: List<Pharmacy>,
     isLoading: Boolean,
     currentUserProfile: UserProfile?,
     onRefresh: () -> Unit,
     onUpdateStatus: (String, String) -> Unit,
+    onUpdateAppointmentDetails: (String, String, String?, Int?) -> Unit,
+    onLoadPatientFavorites: (String) -> Unit,
+    onAddPatientFavorite: (String, Pharmacy) -> Unit,
+    onRemovePatientFavorite: (String, String) -> Unit,
+    onTogglePatientDefault: (String, String, Boolean) -> Unit,
+    onUpdatePatientProfile: (Patient) -> Unit,
+    onDeletePatientProfile: (String) -> Unit,
     onExitAdmin: () -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -117,11 +141,11 @@ fun AdminDashboardScreenContent(
                 }
             )
         }
-    ) { padding ->
+    ) { paddingValues ->
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(paddingValues)
         ) {
             val isWideScreen = maxWidth >= 600.dp
 
@@ -185,9 +209,7 @@ fun AdminDashboardScreenContent(
                                     AppointmentDetailPane(
                                         appointment = appt,
                                         patients = patients,
-                                        onUpdateStatus = { id, status ->
-                                            onUpdateStatus(id, status)
-                                        },
+                                        onUpdateAppointmentDetails = onUpdateAppointmentDetails,
                                         onDismiss = { selectedAppointment = null }
                                     )
                                 } else {
@@ -200,6 +222,14 @@ fun AdminDashboardScreenContent(
                                     PatientDetailPane(
                                         patient = pat,
                                         appointments = appointments,
+                                        favoritePharmacies = selectedPatientFavorites,
+                                        masterPharmacies = masterPharmacies,
+                                        onLoadFavorites = onLoadPatientFavorites,
+                                        onAddFavorite = onAddPatientFavorite,
+                                        onRemoveFavorite = onRemovePatientFavorite,
+                                        onToggleDefault = onTogglePatientDefault,
+                                        onUpdateProfile = onUpdatePatientProfile,
+                                        onDeleteProfile = onDeletePatientProfile,
                                         onDismiss = { selectedPatient = null }
                                     )
                                 } else {
@@ -268,9 +298,7 @@ fun AdminDashboardScreenContent(
                                     AppointmentDetailPane(
                                         appointment = appt,
                                         patients = patients,
-                                        onUpdateStatus = { id, status ->
-                                            onUpdateStatus(id, status)
-                                        },
+                                        onUpdateAppointmentDetails = onUpdateAppointmentDetails,
                                         onDismiss = {
                                             showDetailBottomSheet = false
                                             selectedAppointment = null
@@ -281,6 +309,14 @@ fun AdminDashboardScreenContent(
                                     PatientDetailPane(
                                         patient = pat,
                                         appointments = appointments,
+                                        favoritePharmacies = selectedPatientFavorites,
+                                        masterPharmacies = masterPharmacies,
+                                        onLoadFavorites = onLoadPatientFavorites,
+                                        onAddFavorite = onAddPatientFavorite,
+                                        onRemoveFavorite = onRemovePatientFavorite,
+                                        onToggleDefault = onTogglePatientDefault,
+                                        onUpdateProfile = onUpdatePatientProfile,
+                                        onDeleteProfile = onDeletePatientProfile,
                                         onDismiss = {
                                             showDetailBottomSheet = false
                                             selectedPatient = null
@@ -459,15 +495,20 @@ fun EmptyDetailPlaceholder(message: String) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun AppointmentDetailPane(
     appointment: Appointment,
     patients: List<Patient>,
-    onUpdateStatus: (String, String) -> Unit,
+    onUpdateAppointmentDetails: (String, String, String?, Int?) -> Unit,
     onDismiss: () -> Unit
 ) {
     val patient = patients.find { it.id == appointment.patient_id }
     val context = LocalContext.current
+
+    var selectedStatus by remember(appointment.status) { mutableStateOf(appointment.status) }
+    var meetLink by remember(appointment.meet_link) { mutableStateOf(appointment.meet_link ?: "") }
+    var paymentAmount by remember(appointment.payment_amount) { mutableStateOf(appointment.payment_amount?.toString() ?: "") }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -485,7 +526,7 @@ fun AppointmentDetailPane(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "진료 상세 정보",
+                    text = "진료 및 결제 조작 패널",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -547,54 +588,153 @@ fun AppointmentDetailPane(
                 }
             }
 
-            if (!appointment.meet_link.isNullOrBlank()) {
-                Button(
-                    onClick = { MeetUtil.openGoogleMeet(context, appointment.meet_link) },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                    shape = RoundedCornerShape(12.dp)
+            HorizontalDivider()
+
+            // 1. Booking Status Management
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("진료 진행 상태 변경", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.VideoCall, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("영상 진료 입장 (Google Meet)", fontWeight = FontWeight.Bold)
+                    listOf("waiting", "calling", "in_progress", "completed", "cancelled").forEach { statusKey ->
+                        val text = when (statusKey) {
+                            "waiting" -> "대기 중"
+                            "calling" -> "입장 대기"
+                            "in_progress" -> "진료 중"
+                            "completed" -> "완료"
+                            "cancelled" -> "취소"
+                            else -> statusKey
+                        }
+                        FilterChip(
+                            selected = selectedStatus == statusKey,
+                            onClick = { selectedStatus = statusKey },
+                            label = { Text(text) }
+                        )
+                    }
                 }
+            }
+
+            // 2. Google Meet Link Management
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("영상 진료 방 링크 (Google Meet)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = meetLink,
+                        onValueChange = { meetLink = it },
+                        placeholder = { Text("https://meet.google.com/...") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = {
+                            meetLink = "https://meet.google.com/mart-clinic-${appointment.id?.take(8) ?: "meet"}"
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Text("링크 생성")
+                    }
+                }
+                if (meetLink.isNotBlank()) {
+                    TextButton(
+                        onClick = { MeetUtil.openGoogleMeet(context, meetLink) },
+                        modifier = Modifier.align(Alignment.Start)
+                    ) {
+                        Icon(Icons.Default.VideoCall, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("생성된 진료방 입장해보기")
+                    }
+                }
+            }
+
+            // 3. Payment Fee Management
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("진료 결제 금액 (원)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = paymentAmount,
+                    onValueChange = { input ->
+                        if (input.all { it.isDigit() }) {
+                            paymentAmount = input
+                        }
+                    },
+                    placeholder = { Text("진료비 금액 입력 (예: 5000)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            when (appointment.status) {
-                Appointment.STATUS_WAITING, Appointment.STATUS_CALLING -> {
-                    Button(
-                        onClick = { onUpdateStatus(appointment.id!!, Appointment.STATUS_IN_PROGRESS) },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("진료 시작하기", fontWeight = FontWeight.Bold)
-                    }
+            // Save Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("취소")
                 }
-                Appointment.STATUS_IN_PROGRESS -> {
-                    Button(
-                        onClick = { onUpdateStatus(appointment.id!!, Appointment.STATUS_COMPLETED) },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("진료 완료하기", fontWeight = FontWeight.Bold)
-                    }
+                Button(
+                    onClick = {
+                        val amount = paymentAmount.toIntOrNull()
+                        onUpdateAppointmentDetails(
+                            appointment.id!!,
+                            selectedStatus,
+                            meetLink.ifBlank { null },
+                            amount
+                        )
+                        Toast.makeText(context, "진료 및 결제 정보가 업데이트되었습니다.", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.weight(1.5f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("저장하기", fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PatientDetailPane(
     patient: Patient,
     appointments: List<Appointment>,
+    favoritePharmacies: List<Pharmacy>,
+    masterPharmacies: List<Pharmacy>,
+    onLoadFavorites: (String) -> Unit,
+    onAddFavorite: (String, Pharmacy) -> Unit,
+    onRemoveFavorite: (String, String) -> Unit,
+    onToggleDefault: (String, String, Boolean) -> Unit,
+    onUpdateProfile: (Patient) -> Unit,
+    onDeleteProfile: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val patientAppointments = remember(patient, appointments) {
         appointments.filter { it.patient_id == patient.id }
+    }
+
+    val context = LocalContext.current
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showAddPharmacyDialog by remember { mutableStateOf(false) }
+
+    // Text inputs for edit profile dialog
+    var editName by remember { mutableStateOf(patient.name) }
+    var editPhone by remember { mutableStateOf(patient.phone) }
+    var editResident by remember { mutableStateOf(patient.resident_number) }
+    var editRelation by remember { mutableStateOf(patient.relationship) }
+    var editChartNumber by remember { mutableStateOf(patient.clinic_patient_number ?: "") }
+
+    LaunchedEffect(patient.id) {
+        patient.id?.let { onLoadFavorites(it) }
     }
 
     Card(
@@ -613,7 +753,7 @@ fun PatientDetailPane(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "환자 프로필 상세",
+                    text = "환자 프로필 관리",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -635,13 +775,29 @@ fun PatientDetailPane(
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.width(16.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(patient.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(
                         text = "관계: ${patient.relationship}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.secondary
                     )
+                }
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = {
+                        editName = patient.name
+                        editPhone = patient.phone
+                        editResident = patient.resident_number
+                        editRelation = patient.relationship
+                        editChartNumber = patient.clinic_patient_number ?: ""
+                        showEditDialog = true
+                    }) {
+                        Icon(Icons.Default.Edit, contentDescription = "프로필 수정", tint = MaterialTheme.colorScheme.primary)
+                    }
+                    IconButton(onClick = { showDeleteConfirm = true }) {
+                        Icon(Icons.Default.Delete, contentDescription = "환자 삭제", tint = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
 
@@ -660,6 +816,101 @@ fun PatientDetailPane(
 
             HorizontalDivider()
 
+            // 1. Patients Favorite Pharmacy Management Section
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "단골 약국 관리",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Button(
+                    onClick = { showAddPharmacyDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("단골약국 추가", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+
+            if (favoritePharmacies.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("등록된 단골 약국이 없습니다.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 140.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(favoritePharmacies) { fav ->
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (fav.is_default) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(fav.pharmacy_name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                        if (fav.is_default) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.primary,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "대표",
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(fav.address, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    TextButton(
+                                        onClick = { onToggleDefault(patient.id!!, fav.id!!, !fav.is_default) },
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                    ) {
+                                        Text(if (fav.is_default) "대표해제" else "대표지정", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    IconButton(
+                                        onClick = { onRemoveFavorite(patient.id!!, fav.id!!) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "삭제", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
+            // 2. Recent Appointment History
             Text(
                 text = "최근 진료 내역",
                 style = MaterialTheme.typography.titleMedium,
@@ -670,7 +921,7 @@ fun PatientDetailPane(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 24.dp),
+                        .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("등록된 과거 진료 내역이 없습니다.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
@@ -679,7 +930,7 @@ fun PatientDetailPane(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 200.dp),
+                        .heightIn(max = 140.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(patientAppointments) { appt ->
@@ -714,6 +965,116 @@ fun PatientDetailPane(
             }
         }
     }
+
+    // Edit Profile Dialog
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("환자 프로필 수정") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("이름") })
+                    OutlinedTextField(value = editPhone, onValueChange = { editPhone = it }, label = { Text("전화번호") })
+                    OutlinedTextField(value = editResident, onValueChange = { editResident = it }, label = { Text("주민등록번호") })
+                    OutlinedTextField(value = editRelation, onValueChange = { editRelation = it }, label = { Text("관계 (예: 본인, 자녀)") })
+                    OutlinedTextField(value = editChartNumber, onValueChange = { editChartNumber = it }, label = { Text("차트번호 (EMR 동기화용)") })
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onUpdateProfile(
+                        patient.copy(
+                            name = editName,
+                            phone = editPhone,
+                            resident_number = editResident,
+                            relationship = editRelation,
+                            clinic_patient_number = editChartNumber.ifBlank { null }
+                        )
+                    )
+                    showEditDialog = false
+                    Toast.makeText(context, "환자 프로필이 수정되었습니다.", Toast.LENGTH_SHORT).show()
+                }) {
+                    Text("수정")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) {
+                    Text("취소")
+                }
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("환자 프로필 삭제") },
+            text = { Text("${patient.name}님의 정보를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteProfile(patient.id!!)
+                        showDeleteConfirm = false
+                        onDismiss()
+                        Toast.makeText(context, "환자 정보가 삭제되었습니다.", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("삭제 확정")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("취소")
+                }
+            }
+        )
+    }
+
+    // Add Favorite Pharmacy Dialog
+    if (showAddPharmacyDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddPharmacyDialog = false },
+            title = { Text("단골 약국 추가") },
+            text = {
+                Column {
+                    Text("아래 목록에서 단골 약국으로 지정할 약국을 선택하세요:", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (masterPharmacies.isEmpty()) {
+                        Text("선택 가능한 약국 목록이 비어 있습니다.", color = MaterialTheme.colorScheme.outline)
+                    } else {
+                        LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
+                            items(masterPharmacies) { pharmacy ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .clickable {
+                                            onAddFavorite(patient.id!!, pharmacy)
+                                            showAddPharmacyDialog = false
+                                            Toast.makeText(context, "단골 약국이 성공적으로 추가되었습니다.", Toast.LENGTH_SHORT).show()
+                                        },
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(pharmacy.pharmacy_name, fontWeight = FontWeight.Bold)
+                                        Text(pharmacy.address, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAddPharmacyDialog = false }) {
+                    Text("닫기")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -737,14 +1098,17 @@ fun AdminDashboardScreenPreview() {
         totalRevenueToday = 450000
     )
     val sampleAppointments = listOf(
-        Appointment(id = "1", patient_id = "p1", status = Appointment.STATUS_CALLING, symptoms = "목이 아파요", queue_number = 101),
-        Appointment(id = "2", patient_id = "p2", status = Appointment.STATUS_IN_PROGRESS, symptoms = "머리가 어지러워요", queue_number = 102),
-        Appointment(id = "3", patient_id = "p3", status = Appointment.STATUS_WAITING, symptoms = "기침이 나요", queue_number = 103)
+        Appointment(id = "1", patient_id = "p1", status = "calling", symptoms = "목이 아파요", queue_number = 101),
+        Appointment(id = "2", patient_id = "p2", status = "in_progress", symptoms = "머리가 어지러워요", queue_number = 102),
+        Appointment(id = "3", patient_id = "p3", status = "waiting", symptoms = "기침이 나요", queue_number = 103)
     )
     val samplePatients = listOf(
         Patient(id = "p1", user_id = "u1", name = "김철수", phone = "010-1234-5678", resident_number = "900101-1", relationship = "본인"),
         Patient(id = "p2", user_id = "u2", name = "이영희", phone = "010-9876-5432", resident_number = "950505-2", relationship = "자녀"),
         Patient(id = "p3", user_id = "u3", name = "박민수", phone = "010-1111-2222", resident_number = "800808-1", relationship = "배우자")
+    )
+    val sampleFavorites = listOf(
+        Pharmacy(id = "f1", patient_id = "p1", pharmacy_name = "사랑약국", address = "서울시 강남구", latitude = 37.0, longitude = 127.0, phone = "02-123-4567", is_default = true)
     )
 
     MartclinicvideochatTheme {
@@ -752,10 +1116,19 @@ fun AdminDashboardScreenPreview() {
             stats = sampleStats,
             appointments = sampleAppointments,
             patients = samplePatients,
+            selectedPatientFavorites = sampleFavorites,
+            masterPharmacies = sampleFavorites,
             isLoading = false,
             currentUserProfile = UserProfile(id = "admin_uid", email = "admin@example.com"),
             onRefresh = {},
             onUpdateStatus = { _, _ -> },
+            onUpdateAppointmentDetails = { _, _, _, _ -> },
+            onLoadPatientFavorites = {},
+            onAddPatientFavorite = { _, _ -> },
+            onRemovePatientFavorite = { _, _ -> },
+            onTogglePatientDefault = { _, _, _ -> },
+            onUpdatePatientProfile = {},
+            onDeletePatientProfile = {},
             onExitAdmin = {},
             onSignOut = {}
         )

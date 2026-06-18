@@ -51,7 +51,11 @@ class PharmacyViewModel @Inject constructor(
                 // Fetch from our local master list (10km radius)
                 _nearbyPharmacies.value = pharmacyRepository.getNearbyPharmacies(lat, lon, 10000.0)
 
-                _pharmacies.value = pharmacyRepository.getAllPharmacies()
+                if (activePatient != null) {
+                    _pharmacies.value = pharmacyRepository.getAllPharmacies()
+                } else {
+                    _pharmacies.value = emptyList()
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {

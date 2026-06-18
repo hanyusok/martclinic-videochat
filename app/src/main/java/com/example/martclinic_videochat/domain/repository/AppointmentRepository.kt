@@ -7,4 +7,5 @@ interface AppointmentRepository {
     suspend fun getAllAppointments(): List<Appointment>
     suspend fun createAppointment(appointment: Appointment)
     suspend fun updateAppointmentStatus(id: String, status: String)
+    suspend fun updateAppointmentDetails(id: String, status: String, meetLink: String?, paymentAmount: Int?)
 }

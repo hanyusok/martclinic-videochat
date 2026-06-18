@@ -30,6 +30,21 @@ class PharmacyRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getFavoritePharmaciesForPatient(patientId: String): List<Pharmacy> {
+        return try {
+            val list = postgrest["favorite_pharmacies"]
+                .select {
+                    filter { eq("patient_id", patientId) }
+                    order("pharmacy_name", Order.ASCENDING)
+                }
+                .decodeList<Pharmacy>()
+            list.distinctBy { it.pharmacy_name + it.address }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     override suspend fun getPharmacyById(id: String): Pharmacy? {
         return try {
             val list = postgrest["favorite_pharmacies"]
@@ -120,9 +135,19 @@ class PharmacyRepositoryImpl @Inject constructor(
 
     override suspend fun addFavoritePharmacy(patientId: String, pharmacy: Pharmacy): Boolean {
         return try {
-            postgrest["favorite_pharmacies"].insert(
-                pharmacy.copy(patient_id = patientId, id = null) // Ensure patient_id is set and let DB generate id
-            )
+            val favPharmacy = buildJsonObject {
+                put("patient_id", patientId)
+                put("pharmacy_name", pharmacy.pharmacy_name)
+                put("address", pharmacy.address)
+                put("latitude", pharmacy.latitude)
+                put("longitude", pharmacy.longitude)
+                put("phone", pharmacy.phone)
+                if (pharmacy.fax != null) {
+                    put("fax", pharmacy.fax)
+                }
+                put("is_default", pharmacy.is_default)
+            }
+            postgrest["favorite_pharmacies"].insert(favPharmacy)
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -177,6 +202,20 @@ class PharmacyRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    override suspend fun getMasterPharmacies(): List<Pharmacy> {
+        return try {
+            val list = postgrest["pharmacies"]
+                .select {
+                    limit(50)
+                }
+                .decodeList<MasterPharmacy>()
+            list.map { it.toPharmacy() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
         }
     }
 }

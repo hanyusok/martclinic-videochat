@@ -81,7 +81,9 @@ fun MainScreen() {
                 )
             }
             composable<Screen.Booking> {
-                BookingScreen()
+                BookingScreen(
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable<Screen.Pharmacy> {
                 PharmacyScreen()

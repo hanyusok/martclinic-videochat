@@ -21,6 +21,7 @@ import com.example.martclinic_videochat.domain.model.Pharmacy
 fun PharmacyCard(
     pharmacy: Pharmacy,
     isFavorite: Boolean,
+    isLoggedIn: Boolean = true,
     onFavoriteClick: () -> Unit,
     onSetDefault: () -> Unit,
     onUpdateFax: (String) -> Unit
@@ -181,13 +182,15 @@ fun PharmacyCard(
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (pharmacy.fax.isNullOrBlank()) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface
                         )
-                        IconButton(onClick = { showFaxDialog = true }, modifier = Modifier.size(24.dp)) {
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "팩스 수정",
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                        if (isLoggedIn) {
+                            IconButton(onClick = { showFaxDialog = true }, modifier = Modifier.size(24.dp)) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "팩스 수정",
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }

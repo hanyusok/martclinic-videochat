@@ -153,38 +153,80 @@ alter table pharmacies enable row level security;
 alter table favorite_pharmacies enable row level security;
 alter table prescriptions enable row level security;
 
--- Patients Policy: 환자는 자신의 정보만 볼 수 있음
+-- Patients Policy: 환자는 자신의 정보만 볼 수 있고, 관리자는 모두 관리 가능
 create policy "Patients can view their own data" on patients
   for select to authenticated
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
 
 create policy "Patients can insert their own data" on patients
   for insert to authenticated
-  with check (auth.uid() = user_id);
+  with check (
+    auth.uid() = user_id
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
 
 create policy "Patients can update their own data" on patients
   for update to authenticated
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  )
+  with check (
+    auth.uid() = user_id
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
+
+create policy "Admins can delete patient profiles" on patients
+  for delete to authenticated
+  using (
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
 
 -- Schedules Policy: 모든 인증된 사용자는 스케줄 조회 가능
 create policy "Schedules are viewable by authenticated users" on schedules
   for select to authenticated
   using (true);
 
--- Appointments Policy: 환자는 자신의 예약만 조회/생성 가능
-create policy "Patients can view their own appointments" on appointments
+-- Appointments Policy: 환자는 자신의 예약만 조회/생성 가능, 관리자는 모두 가능
+create policy "Patients and admins can view appointments" on appointments
   for select to authenticated
-  using (patient_id in (select id from patients where user_id = auth.uid()));
+  using (
+    patient_id in (select id from patients where user_id = auth.uid())
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
 
-create policy "Patients can insert their own appointments" on appointments
+create policy "Patients and admins can insert appointments" on appointments
   for insert to authenticated
-  with check (patient_id in (select id from patients where user_id = auth.uid()));
+  with check (
+    patient_id in (select id from patients where user_id = auth.uid())
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
 
--- Pharmacies Policy: 모든 인증된 사용자는 약국 목록 조회/동기화 가능
-create policy "Pharmacies are viewable by authenticated users" on pharmacies
-  for select to authenticated
-  using (true);
+create policy "Patients and admins can update appointments" on appointments
+  for update to authenticated
+  using (
+    patient_id in (select id from patients where user_id = auth.uid())
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  )
+  with check (
+    patient_id in (select id from patients where user_id = auth.uid())
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
+
+-- Pharmacies Policy: 모든 사용자는 약국 목록 조회 가능 (Guest 대응)
+create policy "Pharmacies are viewable by everyone" on pharmacies
+  for select using (true);
 
 create policy "Pharmacies are insertable by authenticated users" on pharmacies
   for insert to authenticated
@@ -195,10 +237,14 @@ create policy "Pharmacies are updatable by authenticated users" on pharmacies
   using (true)
   with check (true);
 
--- Favorite Pharmacies Policy
-create policy "Patients can manage their favorite pharmacies" on favorite_pharmacies
+-- Favorite Pharmacies Policy: 환자는 자신의 단골 약국만 관리, 관리자는 모두 관리
+create policy "Patients and admins can manage favorite pharmacies" on favorite_pharmacies
   for all to authenticated
-  using (patient_id in (select id from patients where user_id = auth.uid()));
+  using (
+    patient_id in (select id from patients where user_id = auth.uid())
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
 
 -- Prescriptions Policy
 create policy "Patients can view their own prescriptions" on prescriptions
