@@ -45,9 +45,6 @@ class PharmacyViewModel @Inject constructor(
                 val lat = location?.latitude ?: 37.0076786 // Fallback to Lotte Mart Gongdo, Anseong
                 val lon = location?.longitude ?: 127.1993728
                 
-                // Fetch and sync nearby pharmacies from external API (Method currently removed/unimplemented)
-                // pharmacyRepository.fetchAndStoreNearbyPharmacies(lat, lon)
-                
                 // Fetch from our local master list (10km radius)
                 _nearbyPharmacies.value = pharmacyRepository.getNearbyPharmacies(lat, lon, 10000.0)
 
