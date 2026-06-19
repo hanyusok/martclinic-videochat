@@ -17,15 +17,18 @@ import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
+import io.ktor.client.plugins.HttpTimeout
 import javax.inject.Singleton
 import io.github.jan.supabase.compose.auth.ComposeAuth
 import io.github.jan.supabase.compose.auth.composeAuth
 import io.github.jan.supabase.compose.auth.googleNativeLogin
+import kotlin.time.Duration.Companion.seconds
 
 @Module
 @InstallIn(SingletonComponent::class)
 object SupabaseModule {
 
+    @OptIn(io.github.jan.supabase.annotations.SupabaseInternal::class)
     @Provides
     @Singleton
     fun provideSupabaseClient(): SupabaseClient {
@@ -34,6 +37,13 @@ object SupabaseModule {
                 supabaseUrl = Constants.SUPABASE_URL,
                 supabaseKey = Constants.SUPABASE_ANON_KEY
             ) {
+                httpConfig {
+                    install(HttpTimeout) {
+                        requestTimeoutMillis = 30.seconds.inWholeMilliseconds
+                        connectTimeoutMillis = 30.seconds.inWholeMilliseconds
+                        socketTimeoutMillis = 30.seconds.inWholeMilliseconds
+                    }
+                }
                 install(Postgrest)
                 install(Auth) {
                     autoLoadFromStorage = autoLoad

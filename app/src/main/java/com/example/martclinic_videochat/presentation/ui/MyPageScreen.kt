@@ -194,16 +194,58 @@ fun MyPageDashboard(
     val context = LocalContext.current
     val emrSearchResults by viewModel.emrSearchResults.collectAsState()
     val isEmrLoading by viewModel.isEmrLoading.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // User Account Section
+        item {
+            Text(
+                text = "계정 정보",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Email,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "연결된 이메일",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = userProfile?.email ?: "정보 없음",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(8.dp)) }
+
         // Patient Profiles Section
         item {
             Text(
-                text = "가족 프로필 관리",
+                text = "환자 프로필 관리",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -293,12 +335,12 @@ fun PatientProfileCard(
             ) {
                 Column {
                     Text(
-                        text = patient.relationship,
+                        text = patient.relationship ?: "",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (patient.relationship == "본인") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
                     )
                     Text(
-                        text = "${patient.name} 님",
+                        text = "${patient.name ?: ""} 님",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
@@ -342,7 +384,7 @@ fun PatientProfileCard(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = patient.phone,
+                    text = patient.phone ?: "",
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -358,7 +400,7 @@ fun PatientProfileCard(
                     tint = if (patient.relationship == "본인") MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                val maskedResident = if (patient.resident_number.contains("-")) {
+                val maskedResident = if (patient.resident_number?.contains("-") == true) {
                     val parts = patient.resident_number.split("-")
                     if (parts.size == 2) {
                         "${parts[0]}-*******"
@@ -741,13 +783,19 @@ fun PatientProfileEditDialog(
     onDelete: (() -> Unit)? = null,
     viewModel: MyPageViewModel // Added viewModel parameter
 ) {
-    var name by remember { mutableStateOf(patient.name) }
+    var name by remember { mutableStateOf(patient.name ?: "") }
     var birthdate by remember { mutableStateOf("") }
-    var phoneValue by remember { mutableStateOf(TextFieldValue(patient.phone, TextRange(patient.phone.length))) }
-    var residentValue by remember { mutableStateOf(TextFieldValue(patient.resident_number, TextRange(patient.resident_number.length))) }
-    var relationship by remember { mutableStateOf(patient.relationship) }
+    var phoneValue by remember { 
+        val text = patient.phone ?: ""
+        mutableStateOf(TextFieldValue(text, TextRange(text.length))) 
+    }
+    var residentValue by remember { 
+        val text = patient.resident_number ?: ""
+        mutableStateOf(TextFieldValue(text, TextRange(text.length))) 
+    }
+    var relationship by remember { mutableStateOf(patient.relationship ?: "본인") }
 
-    var matchedResidentNumber by remember { mutableStateOf<String?>(if (!isNew && patient.resident_number.isNotEmpty()) patient.resident_number else null) }
+    var matchedResidentNumber by remember { mutableStateOf<String?>(if (!isNew && (patient.resident_number?.isNotEmpty() == true)) patient.resident_number else null) }
     var searchAttempted by remember { mutableStateOf(!isNew) }
     var manualRegistration by remember { mutableStateOf(!isNew) }
 

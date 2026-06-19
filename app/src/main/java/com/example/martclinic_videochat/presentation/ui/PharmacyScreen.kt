@@ -57,7 +57,7 @@ fun PharmacyScreen(
         }
     )
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(isLoggedIn) {
         val hasFine = ContextCompat.checkSelfPermission(context, locationPermissions[0]) == PackageManager.PERMISSION_GRANTED
         val hasCoarse = ContextCompat.checkSelfPermission(context, locationPermissions[1]) == PackageManager.PERMISSION_GRANTED
         
@@ -131,14 +131,22 @@ fun PharmacyScreen(
                                 isLoggedIn = isLoggedIn,
                                 onFavoriteClick = {
                                     if (isLoggedIn) {
-                                        viewModel.toggleFavoritePharmacy(item)
+                                        if (patient == null) {
+                                            Toast.makeText(context, "환자 프로필 등록이 필요합니다.", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            viewModel.toggleFavoritePharmacy(item)
+                                        }
                                     } else {
                                         Toast.makeText(context, "로그인이 필요한 서비스입니다.", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onSetDefault = {
                                     if (isLoggedIn) {
-                                        viewModel.toggleDefaultPharmacy(pharmacyToDisplay, !pharmacyToDisplay.is_default)
+                                        if (patient == null) {
+                                            Toast.makeText(context, "환자 프로필 등록이 필요합니다.", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            viewModel.toggleDefaultPharmacy(pharmacyToDisplay, !pharmacyToDisplay.is_default)
+                                        }
                                     } else {
                                         Toast.makeText(context, "로그인이 필요한 서비스입니다.", Toast.LENGTH_SHORT).show()
                                     }

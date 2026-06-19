@@ -36,7 +36,8 @@ import com.example.martclinic_videochat.util.MeetUtil
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onNavigateToAdmin: () -> Unit = {},
-    onNavigateToBooking: () -> Unit = {}
+    onNavigateToBooking: () -> Unit = {},
+    onNavigateToMyPage: () -> Unit = {}
 ) {
     val patient by viewModel.patient.collectAsStateWithLifecycle()
     val appointments by viewModel.appointments.collectAsStateWithLifecycle()
@@ -44,6 +45,7 @@ fun HomeScreen(
     val isAdmin by viewModel.isAdmin.collectAsStateWithLifecycle()
     val activeStandby by viewModel.activeStandby.collectAsStateWithLifecycle()
     val otherAppointments by viewModel.otherAppointments.collectAsStateWithLifecycle()
+    val needsProfileUpdate by viewModel.needsProfileUpdate.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
@@ -94,6 +96,13 @@ fun HomeScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 0. Profile Reminder (Conditional)
+                if (needsProfileUpdate) {
+                    item {
+                        ProfileReminderBanner(onClick = onNavigateToMyPage)
+                    }
+                }
+
                 // 1. Welcome Banner
                 item {
                     WelcomeBanner(patientName = patient?.name ?: "환자")
@@ -151,6 +160,39 @@ fun HomeScreen(
 
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileReminderBanner(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "프로필 정보가 부족합니다",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    text = "원활한 진료를 위해 정보를 업데이트해주세요.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            TextButton(onClick = onClick) {
+                Text("이동")
             }
         }
     }

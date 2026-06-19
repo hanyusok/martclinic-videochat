@@ -42,6 +42,12 @@ fun PharmacyCard(
             title = { Text("팩스 번호 업데이트") },
             text = {
                 Column {
+                    Text(
+                        text = "올바른 팩스 번호 공유는 다른 환자들의 원활한 진료 접수에 큰 도움이 됩니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
                     OutlinedTextField(
                         value = faxInput,
                         onValueChange = { 

@@ -5,6 +5,7 @@ create table profiles (
   id uuid primary key references auth.users on delete cascade,
   email text,
   role user_role not null default 'patient',
+  is_profile_completed boolean default false,
   updated_at timestamp with time zone default now()
 );
 
@@ -23,13 +24,25 @@ create policy "Users can update their own profiles" on profiles
 -- Trigger to create profile on signup
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  user_role_val public.user_role;
 begin
-  insert into public.profiles (id, email, role)
+  user_role_val := coalesce(new.raw_user_meta_data->>'role', 'patient')::public.user_role;
+
+  insert into public.profiles (id, email, role, is_profile_completed)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data->>'role', 'patient')::public.user_role
+    user_role_val,
+    false
   );
+
+  -- Automatically create a patient record for new patients so they can proceed
+  if user_role_val = 'patient'::public.user_role then
+    insert into public.patients (user_id)
+    values (new.id);
+  end if;
+
   return new;
 end;
 $$ language plpgsql security definer set search_path = public;

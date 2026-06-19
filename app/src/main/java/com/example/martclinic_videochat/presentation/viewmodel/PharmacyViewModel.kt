@@ -51,8 +51,8 @@ class PharmacyViewModel @Inject constructor(
                 // Fetch from our local master list (10km radius)
                 _nearbyPharmacies.value = pharmacyRepository.getNearbyPharmacies(lat, lon, 10000.0)
 
-                if (activePatient != null) {
-                    _pharmacies.value = pharmacyRepository.getAllPharmacies()
+                if (activePatient != null && activePatient.id != null) {
+                    _pharmacies.value = pharmacyRepository.getFavoritePharmaciesForPatient(activePatient.id)
                 } else {
                     _pharmacies.value = emptyList()
                 }
@@ -73,7 +73,7 @@ class PharmacyViewModel @Inject constructor(
             try {
                 val success = pharmacyRepository.setPharmacyDefault(pharmacyId, patientId, isDefault)
                 if (success) {
-                    _pharmacies.value = pharmacyRepository.getAllPharmacies()
+                    _pharmacies.value = pharmacyRepository.getFavoritePharmaciesForPatient(patientId)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -99,7 +99,7 @@ class PharmacyViewModel @Inject constructor(
                 }
 
                 if (success) {
-                    _pharmacies.value = pharmacyRepository.getAllPharmacies()
+                    _pharmacies.value = pharmacyRepository.getFavoritePharmaciesForPatient(patientId)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -116,7 +116,10 @@ class PharmacyViewModel @Inject constructor(
             try {
                 val success = pharmacyRepository.updatePharmacyFax(pharmacyId, newFax)
                 if (success) {
-                    _pharmacies.value = pharmacyRepository.getAllPharmacies()
+                    val patientId = _patient.value?.id
+                    if (patientId != null) {
+                        _pharmacies.value = pharmacyRepository.getFavoritePharmaciesForPatient(patientId)
+                    }
                     // Re-load nearby to see the update there too
                     loadPatientAndPharmacies()
                 }

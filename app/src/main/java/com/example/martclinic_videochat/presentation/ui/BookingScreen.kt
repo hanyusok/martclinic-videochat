@@ -98,7 +98,7 @@ fun BookingScreen(
                             FilterChip(
                                 selected = selectedPatient?.id == p.id,
                                 onClick = { viewModel.selectPatient(p) },
-                                label = { Text(p.name) },
+                                label = { Text(p.name ?: "알 수 없음") },
                                 leadingIcon = if (selectedPatient?.id == p.id) {
                                     { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
                                 } else {
@@ -175,7 +175,7 @@ fun BookingScreen(
             onDismissRequest = { showConfirmationDialog = false },
             title = { Text("진료 접수 확인") },
             text = {
-                Text("${selectedPatient?.name}님의 비대면 진료를 지금 바로 접수하시겠습니까?\n\n접수 후 순서가 되면 알림을 보내드립니다.")
+                Text("${selectedPatient?.name ?: "알 수 없음"}님의 비대면 진료를 지금 바로 접수하시겠습니까?\n\n접수 후 순서가 되면 알림을 보내드립니다.")
             },
             confirmButton = {
                 Button(

@@ -19,5 +19,17 @@ sealed interface Screen {
     data object MyPage : Screen
 
     @Serializable
-    data object AdminDashboard : Screen
+    data object AdminDashboard : Screen // We'll keep this temporarily or remove it if not used anywhere else
+    
+    @Serializable
+    data object AdminQueue : Screen
+
+    @Serializable
+    data object AdminUsers : Screen
+
+    @Serializable
+    data object AdminPharmacy : Screen
+
+    @Serializable
+    data object AdminMyPage : Screen
 }

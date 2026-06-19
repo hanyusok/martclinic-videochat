@@ -28,4 +28,16 @@ class UserRepositoryImpl @Inject constructor(
         val userId = auth.currentUserOrNull()?.id ?: return null
         return getUserProfile(userId)
     }
+
+    override suspend fun updateUserProfile(userProfile: UserProfile): Boolean {
+        return try {
+            postgrest["profiles"].update(userProfile) {
+                filter { eq("id", userProfile.id) }
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }

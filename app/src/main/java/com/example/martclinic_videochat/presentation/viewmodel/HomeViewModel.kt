@@ -41,6 +41,9 @@ class HomeViewModel @Inject constructor(
     private val _isAdmin = MutableStateFlow(false)
     val isAdmin: StateFlow<Boolean> = _isAdmin.asStateFlow()
 
+    private val _needsProfileUpdate = MutableStateFlow(false)
+    val needsProfileUpdate: StateFlow<Boolean> = _needsProfileUpdate.asStateFlow()
+
     val activeStandby = appointments.map { list ->
         list.find { it.status in Appointment.ACTIVE_STATUSES }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -67,6 +70,7 @@ class HomeViewModel @Inject constructor(
                 // Check user role
                 val userProfile = userRepository.getCurrentUserProfile()
                 _isAdmin.value = userProfile?.role == UserRole.ADMIN
+                _needsProfileUpdate.value = userProfile?.is_profile_completed == false
 
                 val activePatient = patientRepository.getFirstPatient()
                 _patient.value = activePatient

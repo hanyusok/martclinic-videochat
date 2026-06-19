@@ -203,6 +203,14 @@ class MyPageViewModel @Inject constructor(
                 )
                 val success = patientRepository.createPatient(newPatient)
                 if (success) {
+                    // Update user profile completion status if this is the "Self" profile
+                    if (relationshipInput == "본인") {
+                        userProfile.value?.let { profile ->
+                            if (!profile.is_profile_completed) {
+                                userRepository.updateUserProfile(profile.copy(is_profile_completed = true))
+                            }
+                        }
+                    }
                     loadPatientInfo()
                     onSuccess()
                 } else {
@@ -317,7 +325,9 @@ class MyPageViewModel @Inject constructor(
             _isLoading.value = true
             try {
                 // EMR 연동 시 이름과 주민번호 전체를 사용하여 동명이인 노출 위험을 차단합니다.
-                val emrRecord = emrRepository.confirmIdentity(patient.name, patient.resident_number)
+                val name = patient.name ?: ""
+                val residentNumber = patient.resident_number ?: ""
+                val emrRecord = emrRepository.confirmIdentity(name, residentNumber)
                 if (emrRecord != null) {
                     val updated = patient.copy(
                         name = emrRecord.name ?: patient.name,
@@ -334,6 +344,26 @@ class MyPageViewModel @Inject constructor(
             } catch (e: Exception) {
                 e.printStackTrace()
                 onError("방문 기록 연동 중 오류가 발생했습니다.")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun updateUserProfile(updatedProfile: UserProfile, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val success = userRepository.updateUserProfile(updatedProfile)
+                if (success) {
+                    _userProfile.value = updatedProfile
+                    onSuccess()
+                } else {
+                    onError("프로필 수정에 실패했습니다.")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onError("프로필 수정 중 오류가 발생했습니다.")
             } finally {
                 _isLoading.value = false
             }

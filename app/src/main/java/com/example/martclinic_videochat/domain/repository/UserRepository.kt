@@ -5,4 +5,5 @@ import com.example.martclinic_videochat.domain.model.UserProfile
 interface UserRepository {
     suspend fun getUserProfile(userId: String): UserProfile?
     suspend fun getCurrentUserProfile(): UserProfile?
+    suspend fun updateUserProfile(userProfile: UserProfile): Boolean
 }
