@@ -63,22 +63,10 @@ create table patients (
   created_at timestamp with time zone default now()
 );
 
--- 2. Doctor Schedules (Availability Management)
-create table schedules (
-  id uuid primary key default gen_random_uuid(),
-  doctor_id uuid, -- For future multi-doctor support
-  date date not null,
-  start_time time not null,
-  end_time time not null,
-  is_available boolean default true,
-  created_at timestamp with time zone default now()
-);
-
 -- 3. Appointments (비대면 진료)
 create table appointments (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid references patients(id),
-  schedule_id uuid references schedules(id),
   status text check (status in ('pending', 'paid', 'confirmed', 'in_progress', 'completed', 'cancelled')) default 'pending',
   symptoms text,
   symptom_images text[], -- storage url
@@ -160,7 +148,6 @@ create table prescriptions (
 
 -- RLS (Row Level Security) 설정
 alter table patients enable row level security;
-alter table schedules enable row level security;
 alter table appointments enable row level security;
 alter table pharmacies enable row level security;
 alter table favorite_pharmacies enable row level security;
@@ -201,11 +188,6 @@ create policy "Admins can delete patient profiles" on patients
   using (
     exists (select 1 from profiles where id = auth.uid() and role = 'admin')
   );
-
--- Schedules Policy: 모든 인증된 사용자는 스케줄 조회 가능
-create policy "Schedules are viewable by authenticated users" on schedules
-  for select to authenticated
-  using (true);
 
 -- Appointments Policy: 환자는 자신의 예약만 조회/생성 가능, 관리자는 모두 가능
 create policy "Patients and admins can view appointments" on appointments

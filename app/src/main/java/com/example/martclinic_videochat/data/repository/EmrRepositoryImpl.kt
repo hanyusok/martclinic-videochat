@@ -6,6 +6,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.request.setBody
 import io.ktor.client.request.parameter
 import io.ktor.http.ContentType
@@ -61,13 +62,21 @@ class EmrRepositoryImpl @Inject constructor(
 
     override suspend fun checkInPatient(cloudMtrCreate: CloudMtrCreate): Boolean {
         return try {
+            android.util.Log.d("EmrRepository", "Attempting check-in: $cloudMtrCreate")
             val response = client.post("api/mtr") {
                 contentType(ContentType.Application.Json)
                 setBody(cloudMtrCreate)
             }
-            response.status.isSuccess()
+            if (response.status.isSuccess()) {
+                android.util.Log.d("EmrRepository", "Check-in success: ${response.bodyAsText()}")
+                true
+            } else {
+                val errorBody = response.bodyAsText()
+                android.util.Log.e("EmrRepository", "Check-in failed: ${response.status}. Body: $errorBody")
+                false
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("EmrRepository", "Check-in exception", e)
             false
         }
     }
