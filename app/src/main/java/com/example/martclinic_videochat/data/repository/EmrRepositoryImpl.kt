@@ -29,7 +29,7 @@ class EmrRepositoryImpl @Inject constructor(
             // Filter out records that are missing essential identification data to avoid UI issues
             results.filter { it.name != null && it.resident_number != null }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("EmrRepository", "searchPatientsByName failed (EMR server non-responding or exception)", e)
             emptyList()
         }
     }
@@ -45,7 +45,7 @@ class EmrRepositoryImpl @Inject constructor(
                 it.name == name && it.birth_date == birthDate 
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("EmrRepository", "confirmIdentity failed (EMR server non-responding or exception) for name: $name", e)
             null
         }
     }
@@ -55,7 +55,7 @@ class EmrRepositoryImpl @Inject constructor(
             val response = client.get("api/patients/$pcode")
             response.status.isSuccess()
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("EmrRepository", "getPatientDetail failed (EMR server non-responding or exception) for pcode: $pcode", e)
             false
         }
     }
@@ -76,7 +76,7 @@ class EmrRepositoryImpl @Inject constructor(
                 false
             }
         } catch (e: Exception) {
-            android.util.Log.e("EmrRepository", "Check-in exception", e)
+            android.util.Log.e("EmrRepository", "Check-in exception (EMR server non-responding or exception)", e)
             false
         }
     }

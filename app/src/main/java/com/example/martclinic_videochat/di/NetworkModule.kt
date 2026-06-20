@@ -6,6 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
@@ -32,6 +33,11 @@ object NetworkModule {
             }
             install(Logging) {
                 level = LogLevel.INFO
+            }
+            install(HttpTimeout) {
+                connectTimeoutMillis = 2000 // 2 seconds connect timeout
+                requestTimeoutMillis = 3000 // 3 seconds request timeout
+                socketTimeoutMillis = 3000 // 3 seconds socket timeout
             }
             defaultRequest {
                 url("https://api.calldoctor.co.kr/")

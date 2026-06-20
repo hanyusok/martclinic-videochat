@@ -67,6 +67,33 @@ fun BookingScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            Surface(
+                tonalElevation = 8.dp,
+                shadowElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .navigationBarsPadding()
+                ) {
+                    Button(
+                        onClick = { showConfirmationDialog = true },
+                        enabled = symptomsText.isNotBlank() && !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.FlashOn, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("지금 바로 진료 접수하기", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
     ) { paddingValues ->
         Box(
@@ -78,12 +105,12 @@ fun BookingScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // 1. ASAP Banner
                 AsapHeroBanner()
-
+ 
                 // 2. Patient Selector
                 Column {
                     Text(
@@ -92,7 +119,7 @@ fun BookingScreen(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -111,7 +138,7 @@ fun BookingScreen(
                         }
                     }
                 }
-
+ 
                 // 3. Symptoms
                 Column {
                     Text(
@@ -119,25 +146,25 @@ fun BookingScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
                         value = symptomsText,
                         onValueChange = { symptomsText = it },
                         placeholder = { Text("어디가 어떻게 아프신가요? (예: 갑자기 열이 나고 목이 아파요)") },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(140.dp),
+                            .height(110.dp),
                         shape = RoundedCornerShape(16.dp)
                     )
                 }
-
+ 
                 // 4. Information Card
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -149,30 +176,14 @@ fun BookingScreen(
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // 5. Action Button
-                Button(
-                    onClick = { showConfirmationDialog = true },
-                    enabled = symptomsText.isNotBlank() && !isLoading,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Icon(Icons.Default.FlashOn, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("지금 바로 진료 접수하기", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
             }
-
+ 
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
         }
     }
-
+ 
     if (showConfirmationDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmationDialog = false },
@@ -198,7 +209,7 @@ fun BookingScreen(
         )
     }
 }
-
+ 
 @Composable
 fun AsapHeroBanner() {
     val gradient = Brush.horizontalGradient(
@@ -207,25 +218,25 @@ fun AsapHeroBanner() {
             MaterialTheme.colorScheme.secondary
         )
     )
-
+ 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(100.dp)
-            .background(gradient, RoundedCornerShape(20.dp))
-            .padding(20.dp),
+            .height(80.dp)
+            .background(gradient, RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Column {
             Text(
                 text = "ASAP 진료 대기",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.White
             )
             Text(
                 text = "예약 없이 지금 바로 순서대로 진료받으세요",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.9f)
             )
         }
