@@ -563,8 +563,8 @@ fun ProfileRegistrationForm(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -580,8 +580,6 @@ fun ProfileRegistrationForm(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = name,
@@ -739,7 +737,7 @@ fun ProfileRegistrationForm(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -931,10 +929,10 @@ fun PatientProfileEditDialog(
             val scrollState = rememberScrollState()
             Column(
                 modifier = Modifier
-                    .padding(20.dp)
+                    .padding(16.dp)
                     .fillMaxWidth()
                     .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -952,8 +950,6 @@ fun PatientProfileEditDialog(
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 // Relationship Selection (only if not '본인' editing self)
                 if (patient.relationship != "본인" || isNew) {

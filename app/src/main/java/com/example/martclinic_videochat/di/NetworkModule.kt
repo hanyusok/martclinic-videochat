@@ -27,6 +27,7 @@ object NetworkModule {
                     ignoreUnknownKeys = true
                     prettyPrint = true
                     isLenient = true
+                    encodeDefaults = true
                 })
             }
             install(Logging) {

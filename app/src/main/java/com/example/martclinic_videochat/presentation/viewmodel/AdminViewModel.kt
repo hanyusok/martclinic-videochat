@@ -59,7 +59,7 @@ class AdminViewModel @Inject constructor(
             _isLoading.value = true
             try {
                 _currentUserProfile.value = userRepository.getCurrentUserProfile()
-                _allPatients.value = patientRepository.getPatients()
+                _allPatients.value = patientRepository.getAllPatients()
                 _allAppointments.value = appointmentRepository.getAllAppointments()
                 _masterPharmacies.value = pharmacyRepository.getMasterPharmacies()
             } catch (e: Exception) {

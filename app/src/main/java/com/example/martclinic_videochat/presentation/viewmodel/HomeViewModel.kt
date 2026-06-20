@@ -7,7 +7,7 @@ import com.example.martclinic_videochat.domain.model.Patient
 import com.example.martclinic_videochat.domain.model.UserRole
 import com.example.martclinic_videochat.domain.repository.PatientRepository
 import com.example.martclinic_videochat.domain.repository.UserRepository
-import com.example.martclinic_videochat.domain.usecase.GetAppointmentsUseCase
+import com.example.martclinic_videochat.domain.repository.AppointmentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -25,7 +25,7 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     private val patientRepository: PatientRepository,
     private val userRepository: UserRepository,
-    private val getAppointmentsUseCase: GetAppointmentsUseCase,
+    private val appointmentRepository: AppointmentRepository,
     private val auth: Auth
 ) : ViewModel() {
 
@@ -38,11 +38,23 @@ class HomeViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _isAdmin = MutableStateFlow(false)
-    val isAdmin: StateFlow<Boolean> = _isAdmin.asStateFlow()
+    val isAdmin: StateFlow<Boolean> = userRepository.currentUserProfile
+        .map { it?.role == UserRole.ADMIN }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    private val _needsProfileUpdate = MutableStateFlow(false)
-    val needsProfileUpdate: StateFlow<Boolean> = _needsProfileUpdate.asStateFlow()
+    val needsProfileUpdate: StateFlow<Boolean> = kotlinx.coroutines.flow.combine(
+        patient,
+        isLoading
+    ) { currentPatient, loading ->
+        if (loading && currentPatient == null) {
+            false
+        } else {
+            currentPatient == null || 
+            currentPatient.name.isNullOrBlank() || 
+            currentPatient.phone.isNullOrBlank() || 
+            currentPatient.resident_number.isNullOrBlank()
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val activeStandby = appointments.map { list ->
         list.find { it.status in Appointment.ACTIVE_STATUSES }
@@ -67,15 +79,13 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Check user role
+                // Ensure profile is loaded for reactive streams
                 val userProfile = userRepository.getCurrentUserProfile()
-                _isAdmin.value = userProfile?.role == UserRole.ADMIN
-                _needsProfileUpdate.value = userProfile?.is_profile_completed == false
 
                 val activePatient = patientRepository.getFirstPatient()
                 _patient.value = activePatient
                 if (activePatient?.id != null) {
-                    _appointments.value = getAppointmentsUseCase(activePatient.id)
+                    _appointments.value = appointmentRepository.getAppointments(activePatient.id)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

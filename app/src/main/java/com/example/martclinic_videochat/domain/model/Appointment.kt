@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 data class Appointment(
     val id: String? = null,
     val patient_id: String,
-    val schedule_id: String? = null, // Optional in ASAP mode
+    val type: String = "ASAP", // "ASAP" or "SCHEDULED"
     val status: String,
     val symptoms: String,
     val queue_number: Int? = null,

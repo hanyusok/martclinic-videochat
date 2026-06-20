@@ -27,6 +27,19 @@ class PatientRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getAllPatients(): List<Patient> {
+        return try {
+            postgrest["patients"]
+                .select {
+                    order("created_at", Order.ASCENDING)
+                }
+                .decodeList<Patient>()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     override suspend fun getFirstPatient(): Patient? {
         val userId = auth.currentUserOrNull()?.id ?: return null
         return try {
@@ -46,26 +59,16 @@ class PatientRepositoryImpl @Inject constructor(
     }
 
     override suspend fun createPatient(patient: Patient): Boolean {
-        return try {
-            postgrest["patients"].insert(patient)
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
+        postgrest["patients"].insert(patient)
+        return true
     }
 
     override suspend fun updatePatient(patient: Patient): Boolean {
         if (patient.id == null) return false
-        return try {
-            postgrest["patients"].update(patient) {
-                filter { eq("id", patient.id) }
-            }
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
+        postgrest["patients"].update(patient) {
+            filter { eq("id", patient.id) }
         }
+        return true
     }
 
     override suspend fun deletePatient(patientId: String): Boolean {

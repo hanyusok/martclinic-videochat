@@ -8,8 +8,10 @@ import com.example.martclinic_videochat.domain.repository.PatientRepository
 import com.example.martclinic_videochat.domain.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -56,8 +58,8 @@ class MyPageViewModel @Inject constructor(
     private val _patient = MutableStateFlow<Patient?>(null)
     val patient: StateFlow<Patient?> = _patient.asStateFlow()
 
-    private val _userProfile = MutableStateFlow<UserProfile?>(null)
-    val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
+    val userProfile: StateFlow<UserProfile?> = userRepository.currentUserProfile
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -81,7 +83,7 @@ class MyPageViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                _userProfile.value = userRepository.getCurrentUserProfile()
+                userRepository.getCurrentUserProfile()
                 val list = patientRepository.getPatients()
                 _patients.value = list
                 _patient.value = list.find { it.relationship == "본인" }
@@ -204,8 +206,9 @@ class MyPageViewModel @Inject constructor(
                 val success = patientRepository.createPatient(newPatient)
                 if (success) {
                     // Update user profile completion status if this is the "Self" profile
-                    if (relationshipInput == "본인") {
-                        userProfile.value?.let { profile ->
+                    if (relationshipInput == "본인" && nameInput.isNotBlank() && phoneInput.isNotBlank() && residentInput.isNotBlank()) {
+                        val currentProfile = userRepository.getCurrentUserProfile()
+                        currentProfile?.let { profile ->
                             if (!profile.is_profile_completed) {
                                 userRepository.updateUserProfile(profile.copy(is_profile_completed = true))
                             }
@@ -216,6 +219,14 @@ class MyPageViewModel @Inject constructor(
                 } else {
                     onError("환자 정보 등록에 실패했습니다.")
                 }
+            } catch (e: io.github.jan.supabase.postgrest.exception.PostgrestRestException) {
+                e.printStackTrace()
+                val message = if (e.code == "23505") {
+                    "이미 등록된 전화번호입니다."
+                } else {
+                    "데이터베이스 오류가 발생했습니다."
+                }
+                onError(message)
             } catch (e: Exception) {
                 e.printStackTrace()
                 onError(e.message ?: "환자 정보 등록에 실패했습니다.")
@@ -246,11 +257,28 @@ class MyPageViewModel @Inject constructor(
                 )
                 val success = patientRepository.updatePatient(updatedPatient)
                 if (success) {
+                    // Update user profile completion status if this is the "Self" profile
+                    if (relationshipInput == "본인" && nameInput.isNotBlank() && phoneInput.isNotBlank() && residentInput.isNotBlank()) {
+                        val currentProfile = userRepository.getCurrentUserProfile()
+                        currentProfile?.let { profile ->
+                            if (!profile.is_profile_completed) {
+                                userRepository.updateUserProfile(profile.copy(is_profile_completed = true))
+                            }
+                        }
+                    }
                     loadPatientInfo()
                     onSuccess()
                 } else {
                     onError("정보 수정에 실패했습니다.")
                 }
+            } catch (e: io.github.jan.supabase.postgrest.exception.PostgrestRestException) {
+                e.printStackTrace()
+                val message = if (e.code == "23505") {
+                    "이미 등록된 전화번호입니다."
+                } else {
+                    "데이터베이스 오류가 발생했습니다."
+                }
+                onError(message)
             } catch (e: Exception) {
                 e.printStackTrace()
                 onError("정보 수정 중 오류가 발생했습니다.")
@@ -356,7 +384,6 @@ class MyPageViewModel @Inject constructor(
             try {
                 val success = userRepository.updateUserProfile(updatedProfile)
                 if (success) {
-                    _userProfile.value = updatedProfile
                     onSuccess()
                 } else {
                     onError("프로필 수정에 실패했습니다.")

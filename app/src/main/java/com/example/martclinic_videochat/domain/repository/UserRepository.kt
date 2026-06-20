@@ -2,8 +2,12 @@ package com.example.martclinic_videochat.domain.repository
 
 import com.example.martclinic_videochat.domain.model.UserProfile
 
+import kotlinx.coroutines.flow.Flow
+
 interface UserRepository {
+    val currentUserProfile: Flow<UserProfile?>
     suspend fun getUserProfile(userId: String): UserProfile?
     suspend fun getCurrentUserProfile(): UserProfile?
     suspend fun updateUserProfile(userProfile: UserProfile): Boolean
+    suspend fun refreshCurrentUserProfile()
 }

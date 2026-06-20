@@ -133,20 +133,30 @@ class PharmacyRepositoryImpl @Inject constructor(
         }
     }
 
+    @kotlinx.serialization.Serializable
+    private data class FavoritePharmacyInsert(
+        val patient_id: String,
+        val pharmacy_name: String,
+        val address: String,
+        val latitude: Double,
+        val longitude: Double,
+        val phone: String,
+        val fax: String? = null,
+        val is_default: Boolean = false
+    )
+
     override suspend fun addFavoritePharmacy(patientId: String, pharmacy: Pharmacy): Boolean {
         return try {
-            val favPharmacy = buildJsonObject {
-                put("patient_id", patientId)
-                put("pharmacy_name", pharmacy.pharmacy_name)
-                put("address", pharmacy.address)
-                put("latitude", pharmacy.latitude)
-                put("longitude", pharmacy.longitude)
-                put("phone", pharmacy.phone)
-                if (pharmacy.fax != null) {
-                    put("fax", pharmacy.fax)
-                }
-                put("is_default", pharmacy.is_default)
-            }
+            val favPharmacy = FavoritePharmacyInsert(
+                patient_id = patientId,
+                pharmacy_name = pharmacy.pharmacy_name,
+                address = pharmacy.address,
+                latitude = pharmacy.latitude,
+                longitude = pharmacy.longitude,
+                phone = pharmacy.phone,
+                fax = pharmacy.fax,
+                is_default = pharmacy.is_default
+            )
             postgrest["favorite_pharmacies"].insert(favPharmacy)
             true
         } catch (e: Exception) {

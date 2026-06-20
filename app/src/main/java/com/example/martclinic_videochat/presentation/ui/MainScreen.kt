@@ -72,7 +72,8 @@ fun MainScreen() {
                             selected = currentDestination?.hierarchy?.any { it.hasRoute(topLevelRoute.route::class) } == true,
                             onClick = {
                                 navController.navigate(topLevelRoute.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
+                                    // Use type-safe route for popUpTo instead of ID
+                                    popUpTo(Screen.Home) {
                                         saveState = true
                                     }
                                     launchSingleTop = true
@@ -99,6 +100,9 @@ fun MainScreen() {
                     },
                     onNavigateToBooking = {
                         navController.navigate(Screen.Booking)
+                    },
+                    onNavigateToMyPage = {
+                        navController.navigate(Screen.MyPage)
                     }
                 )
             }

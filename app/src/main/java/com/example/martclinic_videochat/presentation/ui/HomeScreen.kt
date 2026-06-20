@@ -49,6 +49,11 @@ fun HomeScreen(
 
     val context = LocalContext.current
 
+    // Refresh data when entering the screen
+    LaunchedEffect(Unit) {
+        viewModel.loadActivePatientAndAppointments()
+    }
+
     // Admin Auto-Navigation Trigger
     LaunchedEffect(isAdmin) {
         if (isAdmin) {

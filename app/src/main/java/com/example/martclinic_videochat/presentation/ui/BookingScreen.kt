@@ -39,17 +39,20 @@ fun BookingScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val bookingSuccess by viewModel.bookingSuccess.collectAsState()
 
+    val bookingError by viewModel.bookingError.collectAsState()
+
     var symptomsText by remember { mutableStateOf("") }
     var showConfirmationDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(bookingSuccess) {
+    LaunchedEffect(bookingSuccess, bookingError) {
         if (bookingSuccess == true) {
             Toast.makeText(context, "대기 신청이 완료되었습니다. 홈에서 순서를 확인해주세요.", Toast.LENGTH_LONG).show()
             symptomsText = ""
             viewModel.resetBookingStatus()
             onBack()
         } else if (bookingSuccess == false) {
-            Toast.makeText(context, "신청에 실패했습니다. 다시 시도해 주세요.", Toast.LENGTH_SHORT).show()
+            val errorMsg = bookingError ?: "신청에 실패했습니다. 다시 시도해 주세요."
+            Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
             viewModel.resetBookingStatus()
         }
     }
