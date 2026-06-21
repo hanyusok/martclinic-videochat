@@ -7,4 +7,5 @@ interface EmrRepository {
     suspend fun confirmIdentity(name: String, birthDate: String): EmrPatient?
     suspend fun getPatientDetail(pcode: Int): Boolean
     suspend fun checkInPatient(cloudMtrCreate: com.example.martclinic_videochat.data.remote.dto.CloudMtrCreate): Boolean
+    suspend fun getPatientVisits(pcode: Int): List<com.example.martclinic_videochat.domain.model.EmrVisit>
 }

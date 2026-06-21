@@ -28,6 +28,7 @@ class AdminViewModel @Inject constructor(
     private val patientRepository: PatientRepository,
     private val pharmacyRepository: PharmacyRepository,
     private val userRepository: UserRepository,
+    private val emrRepository: com.example.martclinic_videochat.domain.repository.EmrRepository,
     private val auth: Auth
 ) : ViewModel() {
 
@@ -210,6 +211,29 @@ class AdminViewModel @Inject constructor(
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    fun fetchCostForPatient(patient: Patient, onResult: (Int?) -> Unit) {
+        viewModelScope.launch {
+            val pcode = patient.clinic_patient_number?.toIntOrNull()
+            if (pcode == null) {
+                onResult(null)
+                return@launch
+            }
+            try {
+                val visits = emrRepository.getPatientVisits(pcode)
+                val latestVisit = visits.firstOrNull()
+                if (latestVisit != null) {
+                    val cost = (latestVisit.selfFee ?: 0) + (latestVisit.selfFee2 ?: 0)
+                    onResult(if (cost > 0) cost else null)
+                } else {
+                    onResult(null)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onResult(null)
             }
         }
     }

@@ -1,6 +1,7 @@
 package com.example.martclinic_videochat.data.repository
 
 import com.example.martclinic_videochat.domain.model.EmrPatient
+import com.example.martclinic_videochat.domain.model.EmrVisit
 import com.example.martclinic_videochat.domain.repository.EmrRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -78,6 +79,15 @@ class EmrRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             android.util.Log.e("EmrRepository", "Check-in exception (EMR server non-responding or exception)", e)
             false
+        }
+    }
+
+    override suspend fun getPatientVisits(pcode: Int): List<EmrVisit> {
+        return try {
+            client.get("api/visits/$pcode").body()
+        } catch (e: Exception) {
+            android.util.Log.e("EmrRepository", "getPatientVisits failed for pcode: $pcode", e)
+            emptyList()
         }
     }
 }

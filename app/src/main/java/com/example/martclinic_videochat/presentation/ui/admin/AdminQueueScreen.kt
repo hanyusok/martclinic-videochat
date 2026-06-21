@@ -83,6 +83,10 @@ fun AdminQueueScreen(
                             patients = patients,
                             onUpdateAppointmentDetails = { id, status, meetLink, paymentAmount ->
                                 viewModel.updateAppointmentDetails(id, status, meetLink, paymentAmount)
+                                selectedAppointment = null
+                            },
+                            onFetchCost = { pat, callback ->
+                                viewModel.fetchCostForPatient(pat, callback)
                             },
                             onDismiss = { selectedAppointment = null }
                         )
@@ -126,8 +130,12 @@ fun AdminQueueScreen(
                             AppointmentDetailPane(
                                 appointment = appt,
                                 patients = patients,
-                                onUpdateAppointmentDetails = { id, status, meetLink, paymentAmount ->
-                                    viewModel.updateAppointmentDetails(id, status, meetLink, paymentAmount)
+                                onUpdateAppointmentDetails = { id, status, meet, amount ->
+                                    viewModel.updateAppointmentDetails(id, status, meet, amount)
+                                    selectedAppointment = null
+                                },
+                                onFetchCost = { pat, callback ->
+                                    viewModel.fetchCostForPatient(pat, callback)
                                 },
                                 onDismiss = {
                                     showDetailBottomSheet = false
@@ -274,6 +282,7 @@ fun AppointmentDetailPane(
     appointment: Appointment,
     patients: List<Patient>,
     onUpdateAppointmentDetails: (String, String, String?, Int?) -> Unit,
+    onFetchCost: (Patient, (Int?) -> Unit) -> Unit,
     onDismiss: () -> Unit
 ) {
     val patient = patients.find { it.id == appointment.patient_id }
@@ -421,7 +430,27 @@ fun AppointmentDetailPane(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("진료 결제 금액 (원)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("진료 결제 금액 (원)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (patient != null) {
+                        TextButton(
+                            onClick = {
+                                onFetchCost(patient) { cost ->
+                                    if (cost != null) {
+                                        paymentAmount = cost.toString()
+                                        android.widget.Toast.makeText(context, "EMR에서 진료비를 불러왔습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        android.widget.Toast.makeText(context, "EMR 진료비를 찾을 수 없습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            Text("EMR 금액 불러오기", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = paymentAmount,
                     onValueChange = { input ->
