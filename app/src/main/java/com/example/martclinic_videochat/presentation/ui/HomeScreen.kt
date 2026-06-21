@@ -37,9 +37,11 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onNavigateToAdmin: () -> Unit = {},
     onNavigateToBooking: () -> Unit = {},
-    onNavigateToMyPage: () -> Unit = {}
+    onNavigateToMyPage: () -> Unit = {},
+    onNavigateToPayment: (String, Int) -> Unit = { _, _ -> }
 ) {
     val patient by viewModel.patient.collectAsStateWithLifecycle()
+    val allPatients by viewModel.allPatients.collectAsStateWithLifecycle()
     val appointments by viewModel.appointments.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val isAdmin by viewModel.isAdmin.collectAsStateWithLifecycle()
@@ -49,9 +51,18 @@ fun HomeScreen(
 
     val context = LocalContext.current
 
-    // Refresh data when entering the screen
-    LaunchedEffect(Unit) {
-        viewModel.loadActivePatientAndAppointments()
+    // Refresh data when entering or resuming the screen
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.loadActivePatientAndAppointments()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     // Admin Auto-Navigation Trigger
@@ -98,8 +109,8 @@ fun HomeScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                contentPadding = PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // 0. Profile Reminder (Conditional)
                 if (needsProfileUpdate) {
@@ -116,11 +127,19 @@ fun HomeScreen(
                 // 2. ASAP Standby Status Card (High Priority)
                 activeStandby?.let { standby ->
                     item(key = "active_standby") {
+                        val standbyPatient = allPatients.find { it.id == standby.patient_id }
                         StandbyStatusCard(
                             appointment = standby,
+                            patientName = standbyPatient?.name,
                             onJoinCall = {
                                 if (!standby.meet_link.isNullOrBlank()) {
                                     MeetUtil.openGoogleMeet(context, standby.meet_link)
+                                }
+                            },
+                            onPay = {
+                                standby.id?.let { id ->
+                                    val amount = standby.payment_amount ?: 0
+                                    onNavigateToPayment(id, amount)
                                 }
                             }
                         )
@@ -150,12 +169,14 @@ fun HomeScreen(
                     items(
                         items = otherAppointments,
                         key = { it.id ?: it.hashCode() }
-                    ) { appointment ->
+                    ) { appt ->
+                        val apptPatient = allPatients.find { it.id == appt.patient_id }
                         AppointmentCard(
-                            appointment = appointment,
+                            appointment = appt,
+                            patientName = apptPatient?.name,
                             onEnterConsultation = {
-                                if (!appointment.meet_link.isNullOrBlank()) {
-                                    MeetUtil.openGoogleMeet(context, appointment.meet_link)
+                                if (!appt.meet_link.isNullOrBlank()) {
+                                    MeetUtil.openGoogleMeet(context, appt.meet_link)
                                 }
                             }
                         )
@@ -206,21 +227,23 @@ fun ProfileReminderBanner(onClick: () -> Unit) {
 @Composable
 fun StandbyStatusCard(
     appointment: Appointment,
-    onJoinCall: () -> Unit
+    patientName: String? = null,
+    onJoinCall: () -> Unit,
+    onPay: (() -> Unit)? = null
 ) {
     val isCalling = appointment.status == Appointment.STATUS_CALLING
     
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isCalling) MaterialTheme.colorScheme.secondaryContainer 
                              else MaterialTheme.colorScheme.tertiaryContainer
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -228,8 +251,14 @@ fun StandbyStatusCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                val titlePrefix = if (patientName != null) "[$patientName] " else ""
+                val titleText = when (appointment.status) {
+                    Appointment.STATUS_CALLING -> "🔔 ${titlePrefix}의사가 대기 중입니다!"
+                    Appointment.STATUS_PAYMENT_PENDING -> "💳 ${titlePrefix}결제 대기 중"
+                    else -> "⏳ ${titlePrefix}진료 대기 중"
+                }
                 Text(
-                    text = if (isCalling) "🔔 의사가 대기 중입니다!" else "⏳ 진료 대기 중",
+                    text = titleText,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isCalling) MaterialTheme.colorScheme.onSecondaryContainer 
@@ -248,62 +277,99 @@ fun StandbyStatusCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Big Rank / Wait Time Circle
             Box(
                 modifier = Modifier
-                    .size(120.dp)
+                    .size(80.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    val statusLabel = when (appointment.status) {
+                        Appointment.STATUS_CALLING -> "NOW"
+                        Appointment.STATUS_PAYMENT_PENDING -> "필수"
+                        else -> "대기 중"
+                    }
+                    val statusText = when (appointment.status) {
+                        Appointment.STATUS_CALLING -> "진료중"
+                        Appointment.STATUS_PAYMENT_PENDING -> "결제"
+                        else -> "순서"
+                    }
                     Text(
-                        text = if (isCalling) "NOW" else "대기 중",
+                        text = statusLabel,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = if (isCalling) "진료중" else "순서",
-                        style = MaterialTheme.typography.headlineMedium,
+                        text = statusText,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            val waitTimeText = when (appointment.status) {
+                Appointment.STATUS_CALLING -> "아래 버튼을 눌러 영상 진료실에 입장하세요."
+                Appointment.STATUS_PAYMENT_PENDING -> {
+                    if (appointment.payment_amount == null) "진료비용을 산정 중입니다. 잠시만 기다려주세요..."
+                    else "원활한 진료를 위해 사전 결제(${appointment.payment_amount}원)를 진행해주세요."
+                }
+                else -> "예상 대기 시간: 약 ${appointment.estimated_wait_minutes ?: 15}분"
+            }
             Text(
-                text = if (isCalling) "아래 버튼을 눌러 영상 진료실에 입장하세요." 
-                       else "예상 대기 시간: 약 ${appointment.estimated_wait_minutes ?: 15}분",
+                text = waitTimeText,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (appointment.status == Appointment.STATUS_PAYMENT_PENDING) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
-                onClick = onJoinCall,
-                enabled = isCalling || appointment.status == Appointment.STATUS_IN_PROGRESS,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                )
-            ) {
-                Icon(
-                    imageVector = if (isCalling) Icons.Default.VideoCall else Icons.Default.HourglassEmpty,
-                    contentDescription = null
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (isCalling) "영상 진료 입장하기" else "순서가 되면 버튼이 활성화됩니다",
-                    fontWeight = FontWeight.Bold
-                )
+            if (appointment.status == Appointment.STATUS_PAYMENT_PENDING) {
+                if (appointment.payment_amount == null) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                } else {
+                    Button(
+                        onClick = { onPay?.invoke() },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(imageVector = Icons.Default.Payment, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("결제 후 대기열 등록", fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else {
+                Button(
+                    onClick = onJoinCall,
+                    enabled = isCalling || appointment.status == Appointment.STATUS_IN_PROGRESS,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (isCalling) Icons.Default.VideoCall else Icons.Default.HourglassEmpty,
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isCalling) "영상 진료 입장하기" else "순서가 되면 버튼이 활성화됩니다",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -340,34 +406,29 @@ fun WelcomeBanner(patientName: String) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(gradient)
-                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Column {
-                Text(
-                    text = "안녕하세요,",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White.copy(alpha = 0.9f)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${patientName}님!",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "마트클리닉에서 가장 빠른 진료를 받아보세요.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.8f)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "안녕하세요, ${patientName}님!",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "마트클리닉에서 가장 빠른 진료를 받아보세요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
             }
         }
     }
@@ -377,7 +438,7 @@ fun WelcomeBanner(patientName: String) {
 fun StatsRow(total: Int, active: Int, completed: Int) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         StatCard(title = "전체", count = total, modifier = Modifier.weight(1f))
         StatCard(title = "대기/진행", count = active, modifier = Modifier.weight(1f), isHighlight = true)
@@ -389,26 +450,26 @@ fun StatsRow(total: Int, active: Int, completed: Int) {
 fun StatCard(title: String, count: Int, modifier: Modifier = Modifier, isHighlight: Boolean = false) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isHighlight) MaterialTheme.colorScheme.primaryContainer 
                              else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 color = if (isHighlight) MaterialTheme.colorScheme.onPrimaryContainer 
                         else MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = count.toString(),
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (isHighlight) MaterialTheme.colorScheme.primary 
                         else MaterialTheme.colorScheme.onSurface

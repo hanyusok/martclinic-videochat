@@ -223,14 +223,8 @@ class AdminViewModel @Inject constructor(
                 return@launch
             }
             try {
-                val visits = emrRepository.getPatientVisits(pcode)
-                val latestVisit = visits.firstOrNull()
-                if (latestVisit != null) {
-                    val cost = (latestVisit.selfFee ?: 0) + (latestVisit.selfFee2 ?: 0)
-                    onResult(if (cost > 0) cost else null)
-                } else {
-                    onResult(null)
-                }
+                val cost = emrRepository.getTodayConsultationCost(pcode)
+                onResult(cost)
             } catch (e: Exception) {
                 e.printStackTrace()
                 onResult(null)

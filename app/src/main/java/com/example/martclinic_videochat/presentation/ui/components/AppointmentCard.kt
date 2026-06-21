@@ -14,6 +14,7 @@ import com.example.martclinic_videochat.util.DateTimeUtil
 @Composable
 fun AppointmentCard(
     appointment: Appointment,
+    patientName: String? = null,
     onEnterConsultation: (() -> Unit)? = null,
     onViewPrescription: (() -> Unit)? = null
 ) {
@@ -21,11 +22,11 @@ fun AppointmentCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -52,7 +53,7 @@ fun AppointmentCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = "증상:",
@@ -60,8 +61,9 @@ fun AppointmentCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Bold
             )
+            val symptomText = if (patientName != null) "[$patientName] ${appointment.symptoms}" else appointment.symptoms
             Text(
-                text = appointment.symptoms,
+                text = symptomText,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 2.dp)
@@ -70,7 +72,7 @@ fun AppointmentCard(
             appointment.created_at?.let { createdAt ->
                 val formattedTime = DateTimeUtil.formatTimestampToKst(createdAt)
                 if (formattedTime.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "접수 일시: $formattedTime",
                         style = MaterialTheme.typography.bodySmall,
@@ -81,7 +83,7 @@ fun AppointmentCard(
 
             // Entry Button for ongoing consults
             if (appointment.status in listOf("confirmed", Appointment.STATUS_IN_PROGRESS) && !appointment.meet_link.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = { onEnterConsultation?.invoke() },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
@@ -94,7 +96,7 @@ fun AppointmentCard(
 
             // Prescription View Button for completed consults
             if (appointment.status == Appointment.STATUS_COMPLETED) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = { onViewPrescription?.invoke() },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),

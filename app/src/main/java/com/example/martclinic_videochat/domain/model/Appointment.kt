@@ -19,11 +19,12 @@ data class Appointment(
     val created_at: String? = null
 ) {
     companion object {
-        val ACTIVE_STATUSES = listOf("waiting", "calling", "in_progress")
+        val ACTIVE_STATUSES = listOf("waiting", "calling", "in_progress", "payment_pending")
         const val STATUS_COMPLETED = "completed"
         const val STATUS_CALLING = "calling"
         const val STATUS_WAITING = "waiting"
         const val STATUS_IN_PROGRESS = "in_progress"
+        const val STATUS_PAYMENT_PENDING = "payment_pending"
     }
 
     val statusText: String
@@ -31,6 +32,7 @@ data class Appointment(
             "waiting" -> "대기 중"
             "calling" -> "진료 입장 대기"
             "in_progress" -> "진료 중"
+            "payment_pending" -> "수납 대기"
             "completed" -> "진료 완료"
             "cancelled" -> "진료 취소"
             else -> status
@@ -42,6 +44,7 @@ data class Appointment(
             "waiting" -> MaterialTheme.colorScheme.tertiary
             "calling" -> MaterialTheme.colorScheme.secondary
             "in_progress" -> MaterialTheme.colorScheme.primary
+            "payment_pending" -> MaterialTheme.colorScheme.error
             "completed" -> MaterialTheme.colorScheme.outline
             "cancelled" -> MaterialTheme.colorScheme.error
             else -> MaterialTheme.colorScheme.surfaceVariant

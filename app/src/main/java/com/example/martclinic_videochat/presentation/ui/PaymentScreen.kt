@@ -12,12 +12,15 @@ import android.view.ViewGroup
 import android.webkit.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import java.net.URISyntaxException
 
-@SuppressLint("SetJavaScriptEnabled")
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentScreen(
     url: String,
@@ -36,43 +39,65 @@ fun PaymentScreen(
         }
     }
 
-    AndroidView(
-        modifier = Modifier.fillMaxSize(),
-        factory = { context ->
-            WebView(context).apply {
-                webView = this
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                
-                settings.apply {
-                    javaScriptEnabled = true
-                    javaScriptCanOpenWindowsAutomatically = true
-                    domStorageEnabled = true
-                    loadWithOverviewMode = true
-                    useWideViewPort = true
-                    cacheMode = WebSettings.LOAD_NO_CACHE
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            androidx.compose.material3.TopAppBar(
+                title = { androidx.compose.material3.Text("키움페이 결제") },
+                navigationIcon = {
+                    androidx.compose.material3.IconButton(onClick = onClose) {
+                        androidx.compose.material3.Icon(
+                            Icons.Default.ArrowBack, 
+                            contentDescription = "닫기"
+                        )
+                    }
+                },
+                actions = {
+                    // For testing purpose: trigger success
+                    androidx.compose.material3.TextButton(onClick = { onPaymentSuccess(url) }) {
+                        androidx.compose.material3.Text("테스트: 결제 완료")
+                    }
                 }
-
-                // Lollipop 이상 쿠키 및 혼합 콘텐츠 설정
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    CookieManager.getInstance().setAcceptCookie(true)
-                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                }
-
-                webViewClient = createPaymentWebViewClient(
-                    context = context,
-                    onSuccess = onPaymentSuccess,
-                    onFailure = onPaymentFailure
-                )
-                webChromeClient = WebChromeClient()
-                
-                loadUrl(url)
-            }
+            )
         }
-    )
+    ) { paddingValues ->
+        AndroidView(
+            modifier = Modifier.fillMaxSize().padding(paddingValues),
+            factory = { context ->
+                WebView(context).apply {
+                    webView = this
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    
+                    settings.apply {
+                        javaScriptEnabled = true
+                        javaScriptCanOpenWindowsAutomatically = true
+                        domStorageEnabled = true
+                        loadWithOverviewMode = true
+                        useWideViewPort = true
+                        cacheMode = WebSettings.LOAD_NO_CACHE
+                    }
+
+                    // Lollipop 이상 쿠키 및 혼합 콘텐츠 설정
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        CookieManager.getInstance().setAcceptCookie(true)
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    }
+
+                    webViewClient = createPaymentWebViewClient(
+                        context = context,
+                        onSuccess = onPaymentSuccess,
+                        onFailure = onPaymentFailure
+                    )
+                    webChromeClient = WebChromeClient()
+                    
+                    loadUrl(url)
+                }
+            }
+        )
+    }
 }
 
 private fun createPaymentWebViewClient(

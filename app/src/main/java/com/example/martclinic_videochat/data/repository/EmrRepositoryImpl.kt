@@ -90,4 +90,22 @@ class EmrRepositoryImpl @Inject constructor(
             emptyList()
         }
     }
+
+    override suspend fun getTodayConsultationCost(pcode: Int): Int? {
+        val visits = getPatientVisits(pcode)
+        if (visits.isEmpty()) return null
+
+        val todayFormat1 = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(java.util.Date())
+        val todayFormat2 = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+
+        val todayVisit = visits.firstOrNull { 
+            it.inDate?.startsWith(todayFormat1) == true || it.inDate?.startsWith(todayFormat2) == true 
+        }
+
+        if (todayVisit != null) {
+            val cost = (todayVisit.selfFee ?: 0) + (todayVisit.selfFee2 ?: 0)
+            return if (cost > 0) cost else null
+        }
+        return null
+    }
 }

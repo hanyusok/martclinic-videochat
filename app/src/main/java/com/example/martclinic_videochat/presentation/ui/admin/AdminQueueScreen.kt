@@ -378,11 +378,12 @@ fun AppointmentDetailPane(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("waiting", "calling", "in_progress", "completed", "cancelled").forEach { statusKey ->
+                    listOf("waiting", "calling", "in_progress", "payment_pending", "completed", "cancelled").forEach { statusKey ->
                         val text = when (statusKey) {
                             "waiting" -> "대기 중"
                             "calling" -> "입장 대기"
                             "in_progress" -> "진료 중"
+                            "payment_pending" -> "수납 대기"
                             "completed" -> "완료"
                             "cancelled" -> "취소"
                             else -> statusKey

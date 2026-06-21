@@ -16,6 +16,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.example.martclinic_videochat.presentation.navigation.Screen
 import com.example.martclinic_videochat.presentation.ui.admin.AdminMyPageScreen
 import com.example.martclinic_videochat.presentation.ui.admin.AdminPharmacyScreen
@@ -103,6 +104,9 @@ fun MainScreen() {
                     },
                     onNavigateToMyPage = {
                         navController.navigate(Screen.MyPage)
+                    },
+                    onNavigateToPayment = { appointmentId, amount ->
+                        navController.navigate(Screen.Payment(appointmentId, amount))
                     }
                 )
             }
@@ -143,6 +147,25 @@ fun MainScreen() {
                         navController.navigate(Screen.Home) {
                             popUpTo(Screen.Home) { inclusive = true }
                         }
+                    }
+                )
+            }
+            
+            composable<Screen.Payment> { backStackEntry ->
+                val payment = backStackEntry.toRoute<Screen.Payment>()
+                val homeViewModel: com.example.martclinic_videochat.presentation.viewmodel.HomeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+                PaymentScreen(
+                    url = payment.paymentUrl,
+                    onPaymentSuccess = {
+                        // 결제 성공 시 Supabase 상태 업데이트 후 뒤로가기
+                        homeViewModel.processPayment(payment.appointmentId)
+                        navController.popBackStack()
+                    },
+                    onPaymentFailure = {
+                        navController.popBackStack()
+                    },
+                    onClose = {
+                        navController.popBackStack()
                     }
                 )
             }

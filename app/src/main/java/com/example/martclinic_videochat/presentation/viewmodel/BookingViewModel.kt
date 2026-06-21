@@ -133,9 +133,9 @@ class BookingViewModel @Inject constructor(
                 android.util.Log.d("BookingViewModel", "4. Saving appointment to Supabase for patient_id: $patientId")
                 val appointment = Appointment(
                     patient_id = patientId,
-                    status = "waiting", // New status for Queue logic
+                    status = "payment_pending", // Requires pre-payment before entering queue
                     symptoms = symptoms,
-                    payment_amount = 10000 // Standard consultation fee
+                    payment_amount = null // Cost is fetched from EMR asynchronously
                 )
                 appointmentRepository.createAppointment(appointment)
                 android.util.Log.d("BookingViewModel", "Supabase appointment creation successful.")

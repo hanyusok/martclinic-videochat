@@ -20,6 +20,18 @@ class AppointmentRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getAppointmentsForPatients(patientIds: List<String>): List<Appointment> {
+        if (patientIds.isEmpty()) return emptyList()
+        return try {
+            postgrest["appointments"]
+                .select { filter { isIn("patient_id", patientIds) } }
+                .decodeList()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     override suspend fun getAllAppointments(): List<Appointment> {
         return try {
             postgrest["appointments"]
@@ -53,6 +65,16 @@ class AppointmentRepositoryImpl @Inject constructor(
                 "payment_amount" to paymentAmount
             )
             postgrest["appointments"].update(updates) {
+                filter { eq("id", id) }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    override suspend fun updateAppointmentPaymentAmount(id: String, paymentAmount: Int?) {
+        try {
+            postgrest["appointments"].update(mapOf("payment_amount" to paymentAmount)) {
                 filter { eq("id", id) }
             }
         } catch (e: Exception) {
