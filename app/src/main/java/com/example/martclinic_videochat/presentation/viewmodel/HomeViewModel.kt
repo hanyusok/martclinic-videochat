@@ -93,8 +93,11 @@ class HomeViewModel @Inject constructor(
             var pollingDelay = 5000L
             while(true) {
                 val standby = activeStandby.value
-                // If patient is waiting for cost (payment_amount is null)
-                if (standby != null && standby.status == "payment_pending" && standby.payment_amount == null) {
+                // Poll EMR for selfee as long as status is payment_pending.
+                // This covers both: (1) initial cost fetch when payment_amount is null,
+                // and (2) tracking fee changes the doctor may make in the EMR after the
+                // first value was already saved to Supabase.
+                if (standby != null && standby.status == "payment_pending") {
                     val patient = allPatients.value.find { it.id == standby.patient_id }
                     if (patient != null) {
                         val pcode = patient.clinic_patient_number?.toIntOrNull()
@@ -103,9 +106,14 @@ class HomeViewModel @Inject constructor(
                                 val cost = emrRepository.getTodayConsultationCost(pcode)
                                 pollingDelay = 5000L // Reset delay on success
                                 if (cost != null) {
-                                    Log.d(TAG, "[CostPolling] EMR cost found=$cost for pcode=$pcode, appointment=${standby.id}")
-                                    appointmentRepository.updateAppointmentPaymentAmount(standby.id!!, cost)
-                                    loadActivePatientAndAppointments()
+                                    if (cost != standby.payment_amount) {
+                                        // Cost is new or has changed — update Supabase and refresh UI
+                                        Log.d(TAG, "[CostPolling] EMR cost updated: prev=${standby.payment_amount} -> new=$cost for pcode=$pcode, appointment=${standby.id}")
+                                        appointmentRepository.updateAppointmentPaymentAmount(standby.id!!, cost)
+                                        loadActivePatientAndAppointments()
+                                    } else {
+                                        Log.d(TAG, "[CostPolling] EMR cost unchanged: $cost for pcode=$pcode, no Supabase update needed")
+                                    }
                                 } else {
                                     Log.d(TAG, "[CostPolling] EMR cost not yet available for pcode=$pcode")
                                 }
@@ -122,6 +130,7 @@ class HomeViewModel @Inject constructor(
             }
         }
     }
+
 
     fun loadActivePatientAndAppointments() {
         viewModelScope.launch {
