@@ -2,6 +2,7 @@ package com.example.martclinic_videochat.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.example.martclinic_videochat.domain.model.AdminStats
 import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.model.Patient
@@ -67,11 +68,14 @@ class AdminViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                Log.d(TAG, "[Admin] loadDashboardData start")
                 _currentUserProfile.value = userRepository.getCurrentUserProfile()
                 _allPatients.value = patientRepository.getAllPatients()
                 _allAppointments.value = appointmentRepository.getAllAppointments()
                 _masterPharmacies.value = pharmacyRepository.getMasterPharmacies()
+                Log.d(TAG, "[Admin] loadDashboardData success: patients=${_allPatients.value.size}, appointments=${_allAppointments.value.size}")
             } catch (e: Exception) {
+                Log.e(TAG, "[Admin] loadDashboardData FAILED", e)
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
@@ -87,8 +91,15 @@ class AdminViewModel @Inject constructor(
 
     fun updateStatus(appointmentId: String, newStatus: String) {
         viewModelScope.launch {
-            appointmentRepository.updateAppointmentStatus(appointmentId, newStatus)
-            loadDashboardData()
+            try {
+                Log.d(TAG, "[Admin] updateStatus: appointmentId=$appointmentId, newStatus=$newStatus")
+                appointmentRepository.updateAppointmentStatus(appointmentId, newStatus)
+                Log.d(TAG, "[Admin] updateStatus success")
+                loadDashboardData()
+            } catch (e: Exception) {
+                Log.e(TAG, "[Admin] updateStatus FAILED for appointmentId=$appointmentId", e)
+                e.printStackTrace()
+            }
         }
     }
 
@@ -96,9 +107,12 @@ class AdminViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                Log.d(TAG, "[Admin] updateAppointmentDetails: id=$appointmentId, status=$status, meetLink=$meetLink, paymentAmount=$paymentAmount")
                 appointmentRepository.updateAppointmentDetails(appointmentId, status, meetLink, paymentAmount)
+                Log.d(TAG, "[Admin] updateAppointmentDetails success")
                 loadDashboardData()
             } catch (e: Exception) {
+                Log.e(TAG, "[Admin] updateAppointmentDetails FAILED for id=$appointmentId", e)
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
@@ -110,8 +124,11 @@ class AdminViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                Log.d(TAG, "[Admin] loadPatientFavorites: patientId=$patientId")
                 _selectedPatientFavorites.value = pharmacyRepository.getFavoritePharmaciesForPatient(patientId)
+                Log.d(TAG, "[Admin] loadPatientFavorites success: count=${_selectedPatientFavorites.value.size}")
             } catch (e: Exception) {
+                Log.e(TAG, "[Admin] loadPatientFavorites FAILED for patientId=$patientId", e)
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
@@ -139,11 +156,15 @@ class AdminViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                Log.d(TAG, "[Admin] removePatientFavoritePharmacy: patientId=$patientId, pharmacyId=$pharmacyId")
                 val success = pharmacyRepository.removeFavoritePharmacy(pharmacyId)
                 if (success) {
                     loadPatientFavorites(patientId)
+                } else {
+                    Log.e(TAG, "[Admin] removePatientFavoritePharmacy FAILED (returned false) for pharmacyId=$pharmacyId")
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "[Admin] removePatientFavoritePharmacy EXCEPTION for patientId=$patientId, pharmacyId=$pharmacyId", e)
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
@@ -187,11 +208,16 @@ class AdminViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                Log.d(TAG, "[Admin] updatePatientProfile: id=${updatedPatient.id}, name=${updatedPatient.name}")
                 val success = patientRepository.updatePatient(updatedPatient)
                 if (success) {
+                    Log.d(TAG, "[Admin] updatePatientProfile success")
                     loadDashboardData()
+                } else {
+                    Log.e(TAG, "[Admin] updatePatientProfile FAILED (returned false) for id=${updatedPatient.id}")
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "[Admin] updatePatientProfile EXCEPTION for id=${updatedPatient.id}", e)
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
@@ -203,11 +229,16 @@ class AdminViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                Log.d(TAG, "[Admin] deletePatientProfile: patientId=$patientId")
                 val success = patientRepository.deletePatient(patientId)
                 if (success) {
+                    Log.d(TAG, "[Admin] deletePatientProfile success")
                     loadDashboardData()
+                } else {
+                    Log.e(TAG, "[Admin] deletePatientProfile FAILED (returned false) for patientId=$patientId")
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "[Admin] deletePatientProfile EXCEPTION for patientId=$patientId", e)
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
@@ -219,16 +250,24 @@ class AdminViewModel @Inject constructor(
         viewModelScope.launch {
             val pcode = patient.clinic_patient_number?.toIntOrNull()
             if (pcode == null) {
+                Log.w(TAG, "[Admin] fetchCostForPatient: clinic_patient_number is null or not numeric for patient=${patient.name}")
                 onResult(null)
                 return@launch
             }
             try {
+                Log.d(TAG, "[Admin] fetchCostForPatient: pcode=$pcode, patient=${patient.name}")
                 val cost = emrRepository.getTodayConsultationCost(pcode)
+                Log.d(TAG, "[Admin] fetchCostForPatient result: cost=$cost for pcode=$pcode")
                 onResult(cost)
             } catch (e: Exception) {
+                Log.e(TAG, "[Admin] fetchCostForPatient FAILED for pcode=$pcode (EMR server non-responding)", e)
                 e.printStackTrace()
                 onResult(null)
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "AdminViewModel"
     }
 }

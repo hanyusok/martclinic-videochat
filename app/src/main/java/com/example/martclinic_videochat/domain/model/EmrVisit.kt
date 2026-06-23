@@ -6,6 +6,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class EmrVisit(
     @SerialName("selfee") val selfFee: Int? = null,
-    @SerialName("selfee2") val selfFee2: Int? = null,
-    @SerialName("visidate") val inDate: String? = null
+    @SerialName("visidate") val inDate: String? = null,
+    @SerialName("fin") val fin: String? = null
 )

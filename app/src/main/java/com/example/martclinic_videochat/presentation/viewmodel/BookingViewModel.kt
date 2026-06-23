@@ -62,6 +62,7 @@ class BookingViewModel @Inject constructor(
     }
 
     fun requestAsapAppointment(symptoms: String) {
+        if (_isLoading.value) return
         val patient = _selectedPatient.value ?: return
         val patientId = patient.id ?: return
 
@@ -85,13 +86,31 @@ class BookingViewModel @Inject constructor(
                     // 1. Confirm identity in EMR using name and birthdate (YYYY-MM-DD)
                     val emrPatient = emrRepository.confirmIdentity(patient.name ?: "", pbirth)
                     if (emrPatient == null || emrPatient.emr_patient_number == null) {
-                        android.util.Log.e("BookingViewModel", "EMR Identity confirmation returned null or empty patient number (EMR server non-responding or record missing).")
+                        android.util.Log.e("BookingViewModel", "EMR Identity confirmation returned null or empty patient number (EMR server non-responding or record missing). Name: ${patient.name}, Birthdate: $pbirth")
                     } else {
                         pcode = emrPatient.emr_patient_number
                         android.util.Log.d("BookingViewModel", "EMR Identity confirmed. EMR Patient Number (pcode): $pcode")
+
+                        // [FIX] Save pcode to Supabase patients table immediately so that
+                        // HomeViewModel cost-polling can use clinic_patient_number to query EMR for selfFee.
+                        // Without this, clinic_patient_number remains null and the polling loop
+                        // short-circuits at: if (pcode != null) — meaning selfFee is NEVER fetched.
+                        if (patient.clinic_patient_number != pcode.toString()) {
+                            android.util.Log.d("BookingViewModel", "1a. Saving EMR pcode=$pcode to Supabase patients table for patient_id=$patientId")
+                            try {
+                                val updatedPatient = patient.copy(clinic_patient_number = pcode.toString())
+                                patientRepository.updatePatient(updatedPatient)
+                                android.util.Log.d("BookingViewModel", "1a. clinic_patient_number saved successfully: pcode=$pcode, patient_id=$patientId")
+                            } catch (e: Exception) {
+                                android.util.Log.e("BookingViewModel", "1a. FAILED to save clinic_patient_number (pcode=$pcode) to Supabase for patient_id=$patientId — cost polling will not work!", e)
+                                // Non-fatal: continue with booking even if this update fails
+                            }
+                        } else {
+                            android.util.Log.d("BookingViewModel", "1a. clinic_patient_number already up-to-date (pcode=$pcode), skipping update.")
+                        }
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("BookingViewModel", "Exception during EMR identity confirmation (EMR server non-responding)", e)
+                    android.util.Log.e("BookingViewModel", "Exception during EMR identity confirmation for Name: ${patient.name}, Birthdate: $pbirth (EMR server non-responding)", e)
                 }
 
                 if (pcode != null) {
@@ -111,19 +130,31 @@ class BookingViewModel @Inject constructor(
                     // 3. Check-in patient to api.calldoctor.co.kr MTR cloud
                     android.util.Log.d("BookingViewModel", "3. Checking-in patient to EMR MTR cloud for pcode: $pcode")
                     try {
-                        val cloudMtrCreate = com.example.martclinic_videochat.data.remote.dto.CloudMtrCreate(
-                            pcode = pcode,
-                            pname = patient.name,
-                            pbirth = pbirth
-                        )
-                        val checkInSuccess = emrRepository.checkInPatient(cloudMtrCreate)
-                        if (!checkInSuccess) {
-                            android.util.Log.e("BookingViewModel", "EMR Check-in failed for pcode: $pcode (EMR server non-responding or registration failed).")
+                        val visits = emrRepository.getPatientVisits(pcode)
+                        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                        
+                        val alreadyCheckedIn = visits.any { visit ->
+                            visit.inDate?.startsWith(today) == true &&
+                                    visit.fin.isNullOrBlank()
+                        }
+                        
+                        if (alreadyCheckedIn) {
+                            android.util.Log.w("BookingViewModel", "Patient pcode $pcode is already checked in today (active session). Skipping duplicate EMR check-in to prevent double registry.")
                         } else {
-                            android.util.Log.d("BookingViewModel", "EMR Check-in succeeded.")
+                            val cloudMtrCreate = com.example.martclinic_videochat.data.remote.dto.CloudMtrCreate(
+                                pcode = pcode,
+                                pname = patient.name,
+                                pbirth = pbirth
+                            )
+                            val checkInSuccess = emrRepository.checkInPatient(cloudMtrCreate)
+                            if (!checkInSuccess) {
+                                android.util.Log.e("BookingViewModel", "EMR Check-in failed for pcode: $pcode (EMR server non-responding or registration failed).")
+                            } else {
+                                android.util.Log.d("BookingViewModel", "EMR Check-in succeeded.")
+                            }
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("BookingViewModel", "Exception during EMR Check-in for pcode: $pcode (EMR server non-responding)", e)
+                        android.util.Log.e("BookingViewModel", "Exception during EMR Check-in or visits validation for pcode: $pcode (EMR server non-responding)", e)
                     }
                 } else {
                     android.util.Log.w("BookingViewModel", "Skipping EMR detail fetch and EMR check-in step because patient code (pcode) is null due to earlier EMR server failure or missing record.")
@@ -137,8 +168,13 @@ class BookingViewModel @Inject constructor(
                     symptoms = symptoms,
                     payment_amount = null // Cost is fetched from EMR asynchronously
                 )
-                appointmentRepository.createAppointment(appointment)
-                android.util.Log.d("BookingViewModel", "Supabase appointment creation successful.")
+                try {
+                    appointmentRepository.createAppointment(appointment)
+                    android.util.Log.d("BookingViewModel", "Supabase appointment creation successful.")
+                } catch (e: Exception) {
+                    android.util.Log.e("BookingViewModel", "Supabase table insert failed (appointments) for patient_id: $patientId", e)
+                    throw e
+                }
                 _bookingSuccess.value = true
             } catch (e: Exception) {
                 android.util.Log.e("BookingViewModel", "Error in ASAP appointment flow: ${e.localizedMessage}", e)

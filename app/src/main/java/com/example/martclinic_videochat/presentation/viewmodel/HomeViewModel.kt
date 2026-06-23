@@ -2,6 +2,7 @@ package com.example.martclinic_videochat.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.model.Patient
 import com.example.martclinic_videochat.domain.model.UserRole
@@ -89,6 +90,7 @@ class HomeViewModel @Inject constructor(
     private fun startCostPolling() {
         if (pollingJob?.isActive == true) return
         pollingJob = viewModelScope.launch {
+            var pollingDelay = 5000L
             while(true) {
                 val standby = activeStandby.value
                 // If patient is waiting for cost (payment_amount is null)
@@ -99,17 +101,24 @@ class HomeViewModel @Inject constructor(
                         if (pcode != null) {
                             try {
                                 val cost = emrRepository.getTodayConsultationCost(pcode)
+                                pollingDelay = 5000L // Reset delay on success
                                 if (cost != null) {
+                                    Log.d(TAG, "[CostPolling] EMR cost found=$cost for pcode=$pcode, appointment=${standby.id}")
                                     appointmentRepository.updateAppointmentPaymentAmount(standby.id!!, cost)
                                     loadActivePatientAndAppointments()
+                                } else {
+                                    Log.d(TAG, "[CostPolling] EMR cost not yet available for pcode=$pcode")
                                 }
                             } catch (e: Exception) {
+                                Log.e(TAG, "[CostPolling] EMR getTodayConsultationCost FAILED for pcode=$pcode (EMR server non-responding)", e)
                                 e.printStackTrace()
+                                // Double the delay on exception (exponential backoff) up to a max of 60 seconds
+                                pollingDelay = (pollingDelay * 2).coerceAtMost(60000L)
                             }
                         }
                     }
                 }
-                delay(5000)
+                delay(pollingDelay)
             }
         }
     }
@@ -133,6 +142,7 @@ class HomeViewModel @Inject constructor(
                     _appointments.value = emptyList()
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "[HomeViewModel] loadActivePatientAndAppointments FAILED", e)
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
@@ -144,13 +154,20 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                Log.d(TAG, "[HomeViewModel] processPayment: appointmentId=$appointmentId -> status=${Appointment.STATUS_WAITING}")
                 appointmentRepository.updateAppointmentStatus(appointmentId, Appointment.STATUS_WAITING)
+                Log.d(TAG, "[HomeViewModel] processPayment success")
                 loadActivePatientAndAppointments()
             } catch (e: Exception) {
+                Log.e(TAG, "[HomeViewModel] processPayment FAILED for appointmentId=$appointmentId", e)
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "HomeViewModel"
     }
 }

@@ -42,7 +42,7 @@ class PrescriptionViewModelTest {
     @Test
     fun loadPrescription_success_setsPrescriptionAndDispatchedPharmacyAndDefaultPharmacy() = runTest(testDispatcher) {
         // Given
-        val patient = Patient(id = "patient-1", user_id = "user-1", name = "김철수", phone = "010-1234-5678", resident_last7 = "1234567")
+        val patient = Patient(id = "patient-1", user_id = "user-1", name = "김철수", phone = "010-1234-5678", resident_number = "1234567")
         patientRepository.firstPatient = patient
 
         val defaultPharmacy = Pharmacy(id = "pharmacy-default", patient_id = "patient-1", pharmacy_name = "사랑약국", address = "서울시 중구", latitude = 37.5, longitude = 126.9, phone = "02-123-4567", is_default = true)
@@ -83,7 +83,7 @@ class PrescriptionViewModelTest {
     @Test
     fun dispatchPrescriptionToDefaultPharmacy_success_updatesSentStatusAndTriggersSuccess() = runTest(testDispatcher) {
         // Given
-        val patient = Patient(id = "patient-1", user_id = "user-1", name = "김철수", phone = "010-1234-5678", resident_last7 = "1234567")
+        val patient = Patient(id = "patient-1", user_id = "user-1", name = "김철수", phone = "010-1234-5678", resident_number = "1234567")
         patientRepository.firstPatient = patient
 
         val defaultPharmacy = Pharmacy(id = "pharmacy-default", patient_id = "patient-1", pharmacy_name = "사랑약국", address = "서울시 중구", latitude = 37.5, longitude = 126.9, phone = "02-123-4567", is_default = true)
@@ -111,7 +111,7 @@ class PrescriptionViewModelTest {
     @Test
     fun dispatchPrescriptionToDefaultPharmacy_failure_emitsFailure() = runTest(testDispatcher) {
         // Given
-        val patient = Patient(id = "patient-1", user_id = "user-1", name = "김철수", phone = "010-1234-5678", resident_last7 = "1234567")
+        val patient = Patient(id = "patient-1", user_id = "user-1", name = "김철수", phone = "010-1234-5678", resident_number = "1234567")
         patientRepository.firstPatient = patient
 
         val defaultPharmacy = Pharmacy(id = "pharmacy-default", patient_id = "patient-1", pharmacy_name = "사랑약국", address = "서울시 중구", latitude = 37.5, longitude = 126.9, phone = "02-123-4567", is_default = true)
@@ -138,7 +138,7 @@ class PrescriptionViewModelTest {
     @Test
     fun resetDispatchStatus_resetsToNull() = runTest(testDispatcher) {
         // Given
-        val patient = Patient(id = "patient-1", user_id = "user-1", name = "김철수", phone = "010-1234-5678", resident_last7 = "1234567")
+        val patient = Patient(id = "patient-1", user_id = "user-1", name = "김철수", phone = "010-1234-5678", resident_number = "1234567")
         patientRepository.firstPatient = patient
         val defaultPharmacy = Pharmacy(id = "pharmacy-default", patient_id = "patient-1", pharmacy_name = "사랑약국", address = "서울시 중구", latitude = 37.5, longitude = 126.9, phone = "02-123-4567", is_default = true)
         pharmacyRepository.pharmacies.add(defaultPharmacy)
@@ -165,6 +165,14 @@ class PrescriptionViewModelTest {
         var firstPatient: Patient? = null
         var createPatientResult = true
 
+        override suspend fun getPatients(): List<Patient> {
+            return firstPatient?.let { listOf(it) } ?: emptyList()
+        }
+
+        override suspend fun getAllPatients(): List<Patient> {
+            return getPatients()
+        }
+
         override suspend fun getFirstPatient(): Patient? {
             return firstPatient
         }
@@ -173,6 +181,14 @@ class PrescriptionViewModelTest {
             firstPatient = patient
             return createPatientResult
         }
+
+        override suspend fun updatePatient(patient: Patient): Boolean {
+            return true
+        }
+
+        override suspend fun deletePatient(patientId: String): Boolean {
+            return true
+        }
     }
 
     class FakePharmacyRepository : PharmacyRepository {
@@ -180,6 +196,10 @@ class PrescriptionViewModelTest {
 
         override suspend fun getAllPharmacies(): List<Pharmacy> {
             return pharmacies
+        }
+
+        override suspend fun getFavoritePharmaciesForPatient(patientId: String): List<Pharmacy> {
+            return pharmacies.filter { it.patient_id == patientId }
         }
 
         override suspend fun getDefaultPharmacy(patientId: String): Pharmacy? {
@@ -192,6 +212,27 @@ class PrescriptionViewModelTest {
 
         override suspend fun setPharmacyDefault(pharmacyId: String, patientId: String, isDefault: Boolean): Boolean {
             return true
+        }
+
+        override suspend fun getNearbyPharmacies(lat: Double, lon: Double, radius: Double): List<Pharmacy> {
+            return pharmacies
+        }
+
+        override suspend fun addFavoritePharmacy(patientId: String, pharmacy: Pharmacy): Boolean {
+            return pharmacies.add(pharmacy)
+        }
+
+        override suspend fun removeFavoritePharmacy(pharmacyId: String): Boolean {
+            pharmacies.removeIf { it.id == pharmacyId }
+            return true
+        }
+
+        override suspend fun updatePharmacyFax(pharmacyId: String, fax: String): Boolean {
+            return true
+        }
+
+        override suspend fun getMasterPharmacies(): List<Pharmacy> {
+            return pharmacies
         }
     }
 

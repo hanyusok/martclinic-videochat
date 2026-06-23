@@ -67,7 +67,7 @@ create table patients (
 create table appointments (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid references patients(id),
-  status text check (status in ('pending', 'paid', 'confirmed', 'in_progress', 'completed', 'cancelled')) default 'pending',
+  status text check (status in ('pending', 'paid', 'confirmed', 'in_progress', 'completed', 'cancelled', 'payment_pending', 'waiting', 'calling')) default 'pending',
   symptoms text,
   symptom_images text[], -- storage url
   meet_link text,

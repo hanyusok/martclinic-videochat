@@ -142,12 +142,18 @@ private fun createPaymentWebViewClient(
 
                 // 1) 앱이 설치되어 있으면 실행
                 if (packageName != null && isAppInstalled(context, packageName)) {
+                    sanitizeIntent(intent)
                     context.startActivity(intent)
                     return true
                 }
 
                 // 2) 브라우저 Fallback URL 확인
-                val fallbackUrl = intent.getStringExtra("browser_fallback_url")
+                val fallbackUrl = try {
+                    intent.getStringExtra("browser_fallback_url")
+                } catch (e: Exception) {
+                    // Integer cannot be cast to String exception workaround
+                    intent.extras?.get("browser_fallback_url")?.toString()
+                }
                 if (!fallbackUrl.isNullOrEmpty()) {
                     view.loadUrl(fallbackUrl)
                     return true
@@ -175,6 +181,25 @@ private fun createPaymentWebViewClient(
         } catch (e: Exception) {
             Log.e("PaymentWebView", "Unhandled scheme: $url", e)
             false
+        }
+    }
+
+    private fun sanitizeIntent(intent: Intent) {
+        // Samsung SystemUI (GlobalActionsDialogLite) crash workaround
+        // If certain extras are not Strings, convert them to prevent ClassCastException in system components
+        val bundle = intent.extras ?: return
+        val problematicKeys = listOf("browser_fallback_url", "status")
+        for (key in problematicKeys) {
+            try {
+                if (bundle.containsKey(key)) {
+                    val value = bundle.get(key)
+                    if (value != null && value !is String) {
+                        intent.putExtra(key, value.toString())
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
         }
     }
 

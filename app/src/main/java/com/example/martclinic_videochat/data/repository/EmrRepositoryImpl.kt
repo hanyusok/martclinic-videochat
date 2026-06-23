@@ -83,29 +83,38 @@ class EmrRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getPatientVisits(pcode: Int): List<EmrVisit> {
+        android.util.Log.d("EmrRepository", "[EMR] getPatientVisits: pcode=$pcode")
         return try {
-            client.get("api/visits/$pcode").body()
+            val result: List<EmrVisit> = client.get("api/visits/$pcode").body()
+            android.util.Log.d("EmrRepository", "[EMR] getPatientVisits success: ${result.size} visits for pcode=$pcode")
+            result
         } catch (e: Exception) {
-            android.util.Log.e("EmrRepository", "getPatientVisits failed for pcode: $pcode", e)
+            android.util.Log.e("EmrRepository", "[EMR] getPatientVisits FAILED (EMR server non-responding or exception) for pcode=$pcode", e)
             emptyList()
         }
     }
 
     override suspend fun getTodayConsultationCost(pcode: Int): Int? {
-        val visits = getPatientVisits(pcode)
-        if (visits.isEmpty()) return null
-
-        val todayFormat1 = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(java.util.Date())
-        val todayFormat2 = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
-
-        val todayVisit = visits.firstOrNull { 
-            it.inDate?.startsWith(todayFormat1) == true || it.inDate?.startsWith(todayFormat2) == true 
+        android.util.Log.d("EmrRepository", "[EMR] getTodayConsultationCost: pcode=$pcode")
+        val visits = try {
+            getPatientVisits(pcode)
+        } catch (e: Exception) {
+            android.util.Log.e("EmrRepository", "[EMR] getTodayConsultationCost FAILED: getPatientVisits exception for pcode=$pcode", e)
+            return null
+        }
+        if (visits.isEmpty()) {
+            android.util.Log.w("EmrRepository", "[EMR] getTodayConsultationCost: no visits found for pcode=$pcode")
+            return null
         }
 
-        if (todayVisit != null) {
-            val cost = (todayVisit.selfFee ?: 0) + (todayVisit.selfFee2 ?: 0)
-            return if (cost > 0) cost else null
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+
+        val todayVisit = visits.firstOrNull {
+            it.inDate?.startsWith(today) == true &&
+                    (it.selfFee ?: 0) > 0
         }
-        return null
+        android.util.Log.d("EmrRepository", "[EMR] getTodayConsultationCost: today=$today, matched visit inDate=${todayVisit?.inDate}, selfFee=${todayVisit?.selfFee}")
+
+        return todayVisit?.selfFee
     }
 }
