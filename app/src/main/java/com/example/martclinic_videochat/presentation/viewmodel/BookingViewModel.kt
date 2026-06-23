@@ -114,21 +114,8 @@ class BookingViewModel @Inject constructor(
                 }
 
                 if (pcode != null) {
-                    // 2. Fetch patient detail (Optional verification step)
-                    android.util.Log.d("BookingViewModel", "2. Fetching patient detail from EMR for pcode: $pcode")
-                    try {
-                        val detailSuccess = emrRepository.getPatientDetail(pcode)
-                        if (!detailSuccess) {
-                            android.util.Log.e("BookingViewModel", "EMR Patient detail fetch failed for pcode: $pcode (EMR server non-responding or record missing).")
-                        } else {
-                            android.util.Log.d("BookingViewModel", "EMR Patient detail fetched successfully.")
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.e("BookingViewModel", "Exception during EMR patient detail fetch for pcode: $pcode (EMR server non-responding)", e)
-                    }
-
-                    // 3. Check-in patient to api.calldoctor.co.kr MTR cloud
-                    android.util.Log.d("BookingViewModel", "3. Checking-in patient to EMR MTR cloud for pcode: $pcode")
+                    // 2. Check-in patient to api.calldoctor.co.kr MTR cloud
+                    android.util.Log.d("BookingViewModel", "2. Checking-in patient to EMR MTR cloud for pcode: $pcode")
                     try {
                         val visits = emrRepository.getPatientVisits(pcode)
                         val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())

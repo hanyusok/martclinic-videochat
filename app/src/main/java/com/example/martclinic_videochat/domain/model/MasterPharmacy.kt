@@ -15,10 +15,10 @@ data class MasterPharmacy(
     val created_at: String? = null
 )
 
-fun MasterPharmacy.toPharmacy(): Pharmacy {
+fun MasterPharmacy.toPharmacy(patientId: String = ""): Pharmacy {
     return Pharmacy(
         id = this.id,
-        patient_id = "",
+        patient_id = patientId,
         pharmacy_name = this.name,
         address = this.address ?: "",
         latitude = this.latitude,

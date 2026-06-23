@@ -51,16 +51,6 @@ class EmrRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getPatientDetail(pcode: Int): Boolean {
-        return try {
-            val response = client.get("api/patients/$pcode")
-            response.status.isSuccess()
-        } catch (e: Exception) {
-            android.util.Log.e("EmrRepository", "getPatientDetail failed (EMR server non-responding or exception) for pcode: $pcode", e)
-            false
-        }
-    }
-
     override suspend fun checkInPatient(cloudMtrCreate: CloudMtrCreate): Boolean {
         return try {
             android.util.Log.d("EmrRepository", "Attempting check-in: $cloudMtrCreate")

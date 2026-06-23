@@ -308,46 +308,6 @@ class MyPageViewModel @Inject constructor(
         }
     }
 
-    fun syncWithEmrRecord(
-        emrPatient: EmrPatient,
-        targetPatientId: String?, // Optional: if syncing for a specific family member
-        onSuccess: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                if (targetPatientId != null) {
-                    val current = _patients.value.find { it.id == targetPatientId } ?: return@launch
-                    val updated = current.copy(
-                        name = emrPatient.name ?: current.name,
-                        phone = emrPatient.phone ?: current.phone,
-                        resident_number = emrPatient.resident_number ?: current.resident_number,
-                        clinic_patient_number = emrPatient.emr_patient_number?.toString() ?: current.clinic_patient_number
-                    )
-                    patientRepository.updatePatient(updated)
-                } else {
-                    // This was likely intended for a new registration or the 'Self' sync
-                    // We'll treat it as 'Self' update for simplicity if target is null
-                    val self = _patient.value ?: return@launch
-                    val updated = self.copy(
-                        name = emrPatient.name ?: self.name,
-                        phone = emrPatient.phone ?: self.phone,
-                        resident_number = emrPatient.resident_number ?: self.resident_number,
-                        clinic_patient_number = emrPatient.emr_patient_number?.toString() ?: self.clinic_patient_number
-                    )
-                    patientRepository.updatePatient(updated)
-                }
-                loadPatientInfo()
-                onSuccess()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                onError("동기화 중 오류가 발생했습니다.")
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
     fun syncPatientWithEmrDirectly(patient: Patient, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
