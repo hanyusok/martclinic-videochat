@@ -21,6 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.TextRange
@@ -28,6 +31,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import com.example.martclinic_videochat.R
+import androidx.compose.ui.res.painterResource
 import com.example.martclinic_videochat.domain.model.Patient
 import com.example.martclinic_videochat.presentation.viewmodel.MyPageViewModel
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -53,10 +58,10 @@ fun MyPageScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("마이페이지", fontWeight = FontWeight.Bold) },
-                actions = {
-                    if (sessionStatus is SessionStatus.Authenticated) {
+            if (sessionStatus is SessionStatus.Authenticated) {
+                TopAppBar(
+                    title = { Text("마이페이지", fontWeight = FontWeight.Bold) },
+                    actions = {
                         IconButton(onClick = { viewModel.signOut() }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ExitToApp,
@@ -65,8 +70,8 @@ fun MyPageScreen(
                             )
                         }
                     }
-                }
-            )
+                )
+            }
         }
     ) { paddingValues ->
         Box(
@@ -731,6 +736,7 @@ fun ProfileRegistrationForm(
                         supportingText = { residentError?.let { Text(it) } },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = ResidentNumberVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -1125,6 +1131,7 @@ fun PatientProfileEditDialog(
                             supportingText = { residentError?.let { Text(it) } },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            visualTransformation = ResidentNumberVisualTransformation(),
                             modifier = Modifier.fillMaxWidth(),
                             enabled = isNew // Can only edit resident number if adding new family member
                         )
@@ -1187,9 +1194,10 @@ fun AuthScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             Text(
@@ -1197,13 +1205,13 @@ fun AuthScreen(
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 24.dp)
+                modifier = Modifier.padding(top = 0.dp)
             )
             Text(
                 text = "비대면 진료와 처방을 간편하게",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 24.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 
@@ -1258,7 +1266,7 @@ fun AuthScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Button(
                 onClick = {
                     if (isLoginTab) {
@@ -1289,7 +1297,7 @@ fun AuthScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
@@ -1302,53 +1310,89 @@ fun AuthScreen(
             }
         }
 
-        // Kakao Social Login Button
+        // Compact Social Login Buttons Row
         item {
-            Button(
-                onClick = onKakaoLogin,
-                enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFEE500),
-                    contentColor = Color(0xFF191919)
-                ),
-                shape = RoundedCornerShape(12.dp),
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                // Kakao Social Login Button
+                Button(
+                    onClick = onKakaoLogin,
+                    enabled = !isLoading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFEE500),
+                        contentColor = Color(0xFF191919)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
                 ) {
-                    Text("💬", modifier = Modifier.padding(end = 8.dp))
-                    Text("카카오로 로그인", fontWeight = FontWeight.Bold)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_kakao_logo),
+                            contentDescription = "카카오 로그인",
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("카카오", fontWeight = FontWeight.Bold)
+                    }
                 }
-            }
-        }
 
-        // Google Social Login Button
-        item {
-            OutlinedButton(
-                onClick = onGoogleLogin,
-                enabled = !isLoading,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.White,
-                    contentColor = Color.DarkGray
-                ),
-                border = BorderStroke(1.dp, Color(0xFFCCCCCC)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                // Google Social Login Button
+                OutlinedButton(
+                    onClick = onGoogleLogin,
+                    enabled = !isLoading,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.DarkGray
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFFCCCCCC)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
                 ) {
-                    Text("🌐", modifier = Modifier.padding(end = 8.dp))
-                    Text("Google로 로그인", fontWeight = FontWeight.Bold)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_google_logo),
+                            contentDescription = "Google 로그인",
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Google", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
+    }
+}
+
+class ResidentNumberVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val original = text.text
+        val transformed = StringBuilder()
+        for (i in original.indices) {
+            if (i > 7) {
+                transformed.append('*')
+            } else {
+                transformed.append(original[i])
+            }
+        }
+        return TransformedText(
+            AnnotatedString(transformed.toString()),
+            OffsetMapping.Identity
+        )
     }
 }

@@ -48,100 +48,138 @@ fun AdminQueueScreen(
     ) {
         val isWideScreen = maxWidth >= 600.dp
 
-        if (isWideScreen) {
-            Row(modifier = Modifier.fillMaxSize()) {
-                Column(
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
-                ) {
-                    AdminStatsHeader(
-                        totalPatients = stats.totalPatients,
-                        activeQueue = stats.activeAppointments,
-                        completedToday = stats.completedAppointmentsToday,
-                        revenueToday = stats.totalRevenueToday
-                    )
-                    Text("실시간 대기열", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Box(modifier = Modifier.weight(1f)) {
-                        LiveQueueList(appointments = appointments, onItemClick = { selectedAppointment = it })
-                        if (isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("진료 대기열 관리", fontWeight = FontWeight.Bold) },
+                    actions = {
+                        IconButton(onClick = { viewModel.loadDashboardData() }) {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh")
                         }
                     }
-                }
-                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Column(
-                    modifier = Modifier.weight(1.8f).fillMaxHeight().padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    val appt = currentSelectedAppointment
-                    if (appt != null) {
-                        AppointmentDetailPane(
-                            appointment = appt,
-                            patients = patients,
-                            onUpdateAppointmentDetails = { id, status, meetLink, paymentAmount ->
-                                viewModel.updateAppointmentDetails(id, status, meetLink, paymentAmount)
+                )
+            }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                if (isWideScreen) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                        ) {
+                            AdminStatsHeader(
+                                totalPatients = stats.totalPatients,
+                                activeQueue = stats.activeAppointments,
+                                completedToday = stats.completedAppointmentsToday,
+                                revenueToday = stats.totalRevenueToday
+                            )
+                            Text(
+                                "실시간 대기열",
+                                modifier = Modifier.padding(16.dp),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Box(modifier = Modifier.weight(1f)) {
+                                LiveQueueList(
+                                    appointments = appointments,
+                                    onItemClick = { selectedAppointment = it })
+                                if (isLoading) {
+                                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                                }
+                            }
+                        }
+                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Column(
+                            modifier = Modifier.weight(1.8f).fillMaxHeight().padding(16.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            val appt = currentSelectedAppointment
+                            if (appt != null) {
+                                AppointmentDetailPane(
+                                    appointment = appt,
+                                    patients = patients,
+                                    onUpdateAppointmentDetails = { id, status, meetLink, paymentAmount ->
+                                        viewModel.updateAppointmentDetails(
+                                            id,
+                                            status,
+                                            meetLink,
+                                            paymentAmount
+                                        )
+                                        selectedAppointment = null
+                                    },
+                                    onFetchCost = { pat, callback ->
+                                        viewModel.fetchCostForPatient(pat, callback)
+                                    },
+                                    onDismiss = { selectedAppointment = null }
+                                )
+                            } else {
+                                EmptyDetailPlaceholder("대기열에서 진료 건을 선택하면 이곳에 상세 정보와 조작 패널이 표시됩니다.")
+                            }
+                        }
+                    }
+                } else {
+                    var showDetailBottomSheet by remember { mutableStateOf(false) }
+
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        AdminStatsHeader(
+                            totalPatients = stats.totalPatients,
+                            activeQueue = stats.activeAppointments,
+                            completedToday = stats.completedAppointmentsToday,
+                            revenueToday = stats.totalRevenueToday
+                        )
+                        Text(
+                            "실시간 대기열",
+                            modifier = Modifier.padding(16.dp),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            LiveQueueList(appointments = appointments, onItemClick = {
+                                selectedAppointment = it
+                                showDetailBottomSheet = true
+                            })
+                            if (isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                            }
+                        }
+                    }
+
+                    if (showDetailBottomSheet) {
+                        ModalBottomSheet(
+                            onDismissRequest = {
+                                showDetailBottomSheet = false
                                 selectedAppointment = null
                             },
-                            onFetchCost = { pat, callback ->
-                                viewModel.fetchCostForPatient(pat, callback)
-                            },
-                            onDismiss = { selectedAppointment = null }
-                        )
-                    } else {
-                        EmptyDetailPlaceholder("대기열에서 진료 건을 선택하면 이곳에 상세 정보와 조작 패널이 표시됩니다.")
-                    }
-                }
-            }
-        } else {
-            var showDetailBottomSheet by remember { mutableStateOf(false) }
-
-            Column(modifier = Modifier.fillMaxSize()) {
-                AdminStatsHeader(
-                    totalPatients = stats.totalPatients,
-                    activeQueue = stats.activeAppointments,
-                    completedToday = stats.completedAppointmentsToday,
-                    revenueToday = stats.totalRevenueToday
-                )
-                Text("실시간 대기열", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Box(modifier = Modifier.weight(1f)) {
-                    LiveQueueList(appointments = appointments, onItemClick = {
-                        selectedAppointment = it
-                        showDetailBottomSheet = true
-                    })
-                    if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    }
-                }
-            }
-
-            if (showDetailBottomSheet) {
-                ModalBottomSheet(
-                    onDismissRequest = {
-                        showDetailBottomSheet = false
-                        selectedAppointment = null
-                    },
-                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-                ) {
-                    Box(modifier = Modifier.padding(bottom = 32.dp, start = 16.dp, end = 16.dp)) {
-                        currentSelectedAppointment?.let { appt ->
-                            AppointmentDetailPane(
-                                appointment = appt,
-                                patients = patients,
-                                onUpdateAppointmentDetails = { id, status, meet, amount ->
-                                    viewModel.updateAppointmentDetails(id, status, meet, amount)
-                                    selectedAppointment = null
-                                },
-                                onFetchCost = { pat, callback ->
-                                    viewModel.fetchCostForPatient(pat, callback)
-                                },
-                                onDismiss = {
-                                    showDetailBottomSheet = false
-                                    selectedAppointment = null
+                            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(
+                                    bottom = 32.dp,
+                                    start = 16.dp,
+                                    end = 16.dp
+                                )
+                            ) {
+                                currentSelectedAppointment?.let { appt ->
+                                    AppointmentDetailPane(
+                                        appointment = appt,
+                                        patients = patients,
+                                        onUpdateAppointmentDetails = { id, status, meet, amount ->
+                                            viewModel.updateAppointmentDetails(id, status, meet, amount)
+                                            selectedAppointment = null
+                                        },
+                                        onFetchCost = { pat, callback ->
+                                            viewModel.fetchCostForPatient(pat, callback)
+                                        },
+                                        onDismiss = {
+                                            showDetailBottomSheet = false
+                                            selectedAppointment = null
+                                        }
+                                    )
                                 }
-                            )
+                            }
                         }
                     }
                 }

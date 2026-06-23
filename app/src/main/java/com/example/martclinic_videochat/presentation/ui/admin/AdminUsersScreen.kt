@@ -42,90 +42,155 @@ fun AdminUsersScreen(
     ) {
         val isWideScreen = maxWidth >= 600.dp
 
-        if (isWideScreen) {
-            Row(modifier = Modifier.fillMaxSize()) {
-                Column(
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
-                ) {
-                    Text("사용자 관리", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Box(modifier = Modifier.weight(1f)) {
-                        UserDirectoryList(patients = patients, onItemClick = { selectedPatient = it })
-                        if (isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("사용자 관리", fontWeight = FontWeight.Bold) },
+                    actions = {
+                        IconButton(onClick = { viewModel.loadDashboardData() }) {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh")
                         }
                     }
-                }
-                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Column(
-                    modifier = Modifier.weight(1.8f).fillMaxHeight().padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    val pat = selectedPatient
-                    if (pat != null) {
-                        PatientDetailPane(
-                            patient = pat,
-                            appointments = appointments,
-                            favoritePharmacies = selectedPatientFavorites,
-                            masterPharmacies = masterPharmacies,
-                            onLoadFavorites = { viewModel.loadPatientFavorites(it) },
-                            onAddFavorite = { id, p -> viewModel.addPatientFavoritePharmacy(id, p) },
-                            onRemoveFavorite = { id, pid -> viewModel.removePatientFavoritePharmacy(id, pid) },
-                            onToggleDefault = { id, pid, isDef -> viewModel.togglePatientDefaultPharmacy(id, pid, isDef) },
-                            onUpdateProfile = { viewModel.updatePatientProfile(it) },
-                            onDeleteProfile = { viewModel.deletePatientProfile(it) },
-                            onDismiss = { selectedPatient = null }
-                        )
-                    } else {
-                        EmptyDetailPlaceholder("사용자 목록에서 환자를 선택하면 이곳에 프로필 상세 정보와 진료 이력이 표시됩니다.")
-                    }
-                }
+                )
             }
-        } else {
-            var showDetailBottomSheet by remember { mutableStateOf(false) }
-
-            Column(modifier = Modifier.fillMaxSize()) {
-                Text("사용자 관리", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Box(modifier = Modifier.weight(1f)) {
-                    UserDirectoryList(patients = patients, onItemClick = {
-                        selectedPatient = it
-                        showDetailBottomSheet = true
-                    })
-                    if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    }
-                }
-            }
-
-            if (showDetailBottomSheet) {
-                ModalBottomSheet(
-                    onDismissRequest = {
-                        showDetailBottomSheet = false
-                        selectedPatient = null
-                    },
-                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-                ) {
-                    Box(modifier = Modifier.padding(bottom = 32.dp, start = 16.dp, end = 16.dp)) {
-                        selectedPatient?.let { pat ->
-                            PatientDetailPane(
-                                patient = pat,
-                                appointments = appointments,
-                                favoritePharmacies = selectedPatientFavorites,
-                                masterPharmacies = masterPharmacies,
-                                onLoadFavorites = { viewModel.loadPatientFavorites(it) },
-                                onAddFavorite = { id, p -> viewModel.addPatientFavoritePharmacy(id, p) },
-                                onRemoveFavorite = { id, pid -> viewModel.removePatientFavoritePharmacy(id, pid) },
-                                onToggleDefault = { id, pid, isDef -> viewModel.togglePatientDefaultPharmacy(id, pid, isDef) },
-                                onUpdateProfile = { viewModel.updatePatientProfile(it) },
-                                onDeleteProfile = { viewModel.deletePatientProfile(it) },
-                                onDismiss = {
-                                    showDetailBottomSheet = false
-                                    selectedPatient = null
-                                }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                if (isWideScreen) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                        ) {
+                            Text(
+                                "사용자 목록",
+                                modifier = Modifier.padding(16.dp),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
                             )
+                            Box(modifier = Modifier.weight(1f)) {
+                                UserDirectoryList(
+                                    patients = patients,
+                                    onItemClick = { selectedPatient = it })
+                                if (isLoading) {
+                                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                                }
+                            }
+                        }
+                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Column(
+                            modifier = Modifier.weight(1.8f).fillMaxHeight().padding(16.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            val pat = selectedPatient
+                            if (pat != null) {
+                                PatientDetailPane(
+                                    patient = pat,
+                                    appointments = appointments,
+                                    favoritePharmacies = selectedPatientFavorites,
+                                    masterPharmacies = masterPharmacies,
+                                    onLoadFavorites = { viewModel.loadPatientFavorites(it) },
+                                    onAddFavorite = { id, p ->
+                                        viewModel.addPatientFavoritePharmacy(
+                                            id,
+                                            p
+                                        )
+                                    },
+                                    onRemoveFavorite = { id, pid ->
+                                        viewModel.removePatientFavoritePharmacy(
+                                            id,
+                                            pid
+                                        )
+                                    },
+                                    onToggleDefault = { id, pid, isDef ->
+                                        viewModel.togglePatientDefaultPharmacy(
+                                            id,
+                                            pid,
+                                            isDef
+                                        )
+                                    },
+                                    onUpdateProfile = { viewModel.updatePatientProfile(it) },
+                                    onDeleteProfile = { viewModel.deletePatientProfile(it) },
+                                    onDismiss = { selectedPatient = null }
+                                )
+                            } else {
+                                EmptyDetailPlaceholder("사용자 목록에서 환자를 선택하면 이곳에 프로필 상세 정보와 진료 이력이 표시됩니다.")
+                            }
+                        }
+                    }
+                } else {
+                    var showDetailBottomSheet by remember { mutableStateOf(false) }
+
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Text(
+                            "사용자 목록",
+                            modifier = Modifier.padding(16.dp),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            UserDirectoryList(patients = patients, onItemClick = {
+                                selectedPatient = it
+                                showDetailBottomSheet = true
+                            })
+                            if (isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                            }
+                        }
+                    }
+
+                    if (showDetailBottomSheet) {
+                        ModalBottomSheet(
+                            onDismissRequest = {
+                                showDetailBottomSheet = false
+                                selectedPatient = null
+                            },
+                            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(
+                                    bottom = 32.dp,
+                                    start = 16.dp,
+                                    end = 16.dp
+                                )
+                            ) {
+                                selectedPatient?.let { pat ->
+                                    PatientDetailPane(
+                                        patient = pat,
+                                        appointments = appointments,
+                                        favoritePharmacies = selectedPatientFavorites,
+                                        masterPharmacies = masterPharmacies,
+                                        onLoadFavorites = { viewModel.loadPatientFavorites(it) },
+                                        onAddFavorite = { id, p ->
+                                            viewModel.addPatientFavoritePharmacy(
+                                                id,
+                                                p
+                                            )
+                                        },
+                                        onRemoveFavorite = { id, pid ->
+                                            viewModel.removePatientFavoritePharmacy(
+                                                id,
+                                                pid
+                                            )
+                                        },
+                                        onToggleDefault = { id, pid, isDef ->
+                                            viewModel.togglePatientDefaultPharmacy(
+                                                id,
+                                                pid,
+                                                isDef
+                                            )
+                                        },
+                                        onUpdateProfile = { viewModel.updatePatientProfile(it) },
+                                        onDeleteProfile = { viewModel.deletePatientProfile(it) },
+                                        onDismiss = {
+                                            showDetailBottomSheet = false
+                                            selectedPatient = null
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }

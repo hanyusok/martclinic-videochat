@@ -21,8 +21,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.martclinic_videochat.presentation.viewmodel.BookingViewModel
@@ -60,7 +63,7 @@ fun BookingScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("진료 접수 (ASAP)", fontWeight = FontWeight.Bold) },
+                title = { Text("실시간 진료 접수", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기")
@@ -72,7 +75,9 @@ fun BookingScreen(
             Surface(
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
             ) {
                 Box(
                     modifier = Modifier
@@ -189,7 +194,15 @@ fun BookingScreen(
             onDismissRequest = { showConfirmationDialog = false },
             title = { Text("진료 접수 확인") },
             text = {
-                Text("${selectedPatient?.name ?: "알 수 없음"}님의 비대면 진료를 지금 바로 접수하시겠습니까?\n\n접수 후 순서가 되면 알림을 보내드립니다.")
+                Text(
+                    text = buildAnnotatedString {
+                        append("${selectedPatient?.name ?: "알 수 없음"}님의 비대면 진료를 지금 바로 접수하시겠습니까?\n\n⚠️ 원활한 진료 진행을 위해 ")
+                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)) {
+                            append("★사전 결제★")
+                        }
+                        append("가 필수적으로 필요합니다.\n접수 후 순서가 되면 알림을 보내드립니다.")
+                    }
+                )
             },
             confirmButton = {
                 Button(
@@ -229,13 +242,13 @@ fun AsapHeroBanner() {
     ) {
         Column {
             Text(
-                text = "ASAP 진료 대기",
+                text = "실시간 빠른 진료",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.White
             )
             Text(
-                text = "예약 없이 지금 바로 순서대로 진료받으세요",
+                text = "예약 대기 없이 접수 즉시 순서대로 빠르게 진료받으실 수 있습니다",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.9f)
             )

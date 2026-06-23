@@ -386,7 +386,7 @@ fun EmptyAppointmentsCard() {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "현재 접수된 진료가 없습니다.\n아래 [예약] 탭에서 ASAP 접수를 진행하세요.",
+                text = "현재 접수된 진료가 없습니다.\n우측 하단의 [진료 예약] 버튼을 클릭해 실시간 접수를 진행하세요.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

@@ -12,7 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.martclinic_videochat.presentation.ui.MainScreen
-import com.example.martclinic_videochat.ui.theme.MartclinicvideochatTheme
+import com.example.martclinic_videochat.presentation.ui.theme.MartclinicvideochatTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 import io.github.jan.supabase.SupabaseClient
