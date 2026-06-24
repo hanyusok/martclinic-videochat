@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import com.example.martclinic_videochat.R
@@ -38,6 +39,8 @@ import androidx.compose.ui.res.painterResource
 import com.example.martclinic_videochat.domain.model.Patient
 import com.example.martclinic_videochat.presentation.viewmodel.MyPageViewModel
 import io.github.jan.supabase.auth.status.SessionStatus
+import com.example.martclinic_videochat.presentation.ui.components.PortOneWebView
+import com.example.martclinic_videochat.util.PortOneUtil
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -144,6 +147,7 @@ fun MyPageScreen(
                                     relationshipInput = "본인",
                                     skipEmrCheck = skipEmr,
                                     onSuccess = {
+                                        viewModel.clearVerifiedCustomer()
                                         Toast.makeText(context, "환자 정보가 등록되었습니다.", Toast.LENGTH_SHORT).show()
                                     },
                                     onError = { error ->
@@ -428,139 +432,69 @@ fun PatientProfileCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileRegistrationForm(
     onCancel: () -> Unit,
     onSubmit: (String, String, String, Boolean) -> Unit,
-    viewModel: MyPageViewModel // ViewModel passed from parent
+    viewModel: MyPageViewModel
 ) {
-    var name by remember { mutableStateOf("") }
-    var birthdate by remember { mutableStateOf("") }
-    var phoneValue by remember { mutableStateOf(TextFieldValue("")) }
-    var residentValue by remember { mutableStateOf(TextFieldValue("")) }
+    val context = LocalContext.current
+    val verifiedCustomer by viewModel.verifiedCustomer.collectAsState()
+    var showPortOneWebView by remember { mutableStateOf(false) }
 
-    var matchedResidentNumber by remember { mutableStateOf<String?>(null) }
-    var searchAttempted by remember { mutableStateOf(false) }
-    var manualRegistration by remember { mutableStateOf(false) }
-
-    val emrSearchResults by viewModel.emrSearchResults.collectAsState()
-    val isEmrLoading by viewModel.isEmrLoading.collectAsState()
-
-    var nameError by remember { mutableStateOf<String?>(null) }
-    var birthdateError by remember { mutableStateOf<String?>(null) }
-    var phoneError by remember { mutableStateOf<String?>(null) }
+    // Suffix of resident number
+    var residentSuffix by remember { mutableStateOf("") }
     var residentError by remember { mutableStateOf<String?>(null) }
 
-    val phone = phoneValue.text
-    val residentNumber = residentValue.text
-
-    val isNameValid = name.isNotBlank() && name.length >= 2
-    val isBirthdateValid = birthdate.matches(Regex("^\\d{8}$"))
-    val isPhoneValid = phone.matches(Regex("^01[016789]-\\d{3,4}-\\d{4}$"))
-    val isResidentValid = residentNumber.matches(Regex("^\\d{6}-[\\d*]{7}$"))
-
-    fun formatPhone(input: String): String {
-        val digits = input.filter { it.isDigit() }
-        return when {
-            digits.length <= 3 -> digits
-            digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
-            else -> "${digits.take(3)}-${digits.substring(3, 7)}-${digits.drop(7).take(4)}"
+    // When verifiedCustomer changes, prefill the residentSuffix gender digit
+    LaunchedEffect(verifiedCustomer) {
+        verifiedCustomer?.let { customer ->
+            val genderDigit = getGenderDigit(customer.birthDate, customer.gender)
+            residentSuffix = genderDigit
         }
     }
 
-    fun formatResident(input: String): String {
-        val digits = input.filter { it.isDigit() || it == '*' }
-        return when {
-            digits.length <= 6 -> digits
-            else -> "${digits.take(6)}-${digits.drop(6).take(7)}"
-        }
-    }
-
-    fun onPhoneChange(newValue: TextFieldValue) {
-        val oldText = phoneValue.text
-        val newText = newValue.text
-        
-        val isDeletion = newText.length < oldText.length
-        val wasHyphenDeleted = isDeletion && oldText.getOrNull(newValue.selection.start) == '-'
-        
-        val digitsOnly = if (wasHyphenDeleted) {
-            val textBeforeHyphen = oldText.take(newValue.selection.start)
-            val textAfterHyphen = oldText.drop(newValue.selection.start + 1)
-            (textBeforeHyphen.dropLast(1) + textAfterHyphen).filter { it.isDigit() }
-        } else {
-            newText.filter { it.isDigit() }
-        }
-
-        val formatted = formatPhone(digitsOnly)
-        if (formatted.length <= 13) {
-            var digitCountBeforeCursor = newText.take(newValue.selection.start).count { it.isDigit() }
-            if (wasHyphenDeleted) digitCountBeforeCursor = (digitCountBeforeCursor - 1).coerceAtLeast(0)
-            
-            var newCursorPos = 0
-            var currentDigits = 0
-            for (i in formatted.indices) {
-                if (currentDigits == digitCountBeforeCursor) break
-                if (formatted[i].isDigit()) currentDigits++
-                newCursorPos++
-            }
-            if (newCursorPos < formatted.length && formatted[newCursorPos] == '-' && !isDeletion) {
-                newCursorPos++
-            }
-            
-            phoneValue = TextFieldValue(formatted, TextRange(newCursorPos))
-            phoneError = if (formatted.isNotEmpty() && !formatted.matches(Regex("^01[016789]-\\d{3,4}-\\d{4}$"))) 
-                "형식에 맞춰 입력해 주세요 (예: 010-1234-5678)" else null
-        }
-    }
-
-    fun onResidentChange(newValue: TextFieldValue) {
-        val oldText = residentValue.text
-        val newText = newValue.text
-        val isDeletion = newText.length < oldText.length
-        val wasHyphenDeleted = isDeletion && oldText.getOrNull(newValue.selection.start) == '-'
-
-        val digitsOnly = if (wasHyphenDeleted) {
-            val textBeforeHyphen = oldText.take(newValue.selection.start)
-            val textAfterHyphen = oldText.drop(newValue.selection.start + 1)
-            (textBeforeHyphen.dropLast(1) + textAfterHyphen).filter { it.isDigit() || it == '*' }
-        } else {
-            newText.filter { it.isDigit() || it == '*' }
-        }
-
-        val formatted = formatResident(digitsOnly)
-        if (formatted.length <= 14) {
-            var digitCountBeforeCursor = newText.take(newValue.selection.start).count { it.isDigit() || it == '*' }
-            if (wasHyphenDeleted) digitCountBeforeCursor = (digitCountBeforeCursor - 1).coerceAtLeast(0)
-
-            var newCursorPos = 0
-            var currentDigits = 0
-            for (i in formatted.indices) {
-                if (currentDigits == digitCountBeforeCursor) break
-                if (formatted[i].isDigit() || formatted[i] == '*') currentDigits++
-                newCursorPos++
-            }
-            if (newCursorPos < formatted.length && formatted[newCursorPos] == '-' && !isDeletion) {
-                newCursorPos++
-            }
-
-            residentValue = TextFieldValue(formatted, TextRange(newCursorPos))
-            residentError = if (formatted.isNotEmpty() && !formatted.matches(Regex("^\\d{6}-[\\d*]{7}$"))) 
-                "형식에 맞춰 입력해 주세요 (예: 000000-0000000)" else null
-        }
-    }
-
-    LaunchedEffect(emrSearchResults, isEmrLoading) {
-        if (searchAttempted && !isEmrLoading) {
-            val shortBirthdate = if (birthdate.length >= 8) birthdate.substring(2, 8) else birthdate
-            val match = emrSearchResults.find { it.resident_number?.startsWith(shortBirthdate) == true }
-            if (match != null) {
-                matchedResidentNumber = match.resident_number
-                match.phone?.let {
-                    val formattedPhone = formatPhone(it.filter { c -> c.isDigit() })
-                    phoneValue = TextFieldValue(formattedPhone, TextRange(formattedPhone.length))
+    if (showPortOneWebView) {
+        Dialog(
+            onDismissRequest = { showPortOneWebView = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("본인인증", fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = { showPortOneWebView = false }) {
+                                Icon(Icons.Default.Close, contentDescription = "닫기")
+                            }
+                        }
+                    )
                 }
-            } else {
-                matchedResidentNumber = null
+            ) { paddingValues ->
+                Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+                    PortOneWebView(
+                        storeId = PortOneUtil.STORE_ID,
+                        channelKey = PortOneUtil.CHANNEL_KEY,
+                        onVerified = { verificationId ->
+                            viewModel.verifyPortOneIdentity(
+                                identityVerificationId = verificationId,
+                                onSuccess = {
+                                    showPortOneWebView = false
+                                    Toast.makeText(context, "본인인증에 성공했습니다.", Toast.LENGTH_SHORT).show()
+                                },
+                                onError = { error ->
+                                    showPortOneWebView = false
+                                    Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                                }
+                            )
+                        },
+                        onFailed = { message ->
+                            showPortOneWebView = false
+                            Toast.makeText(context, "본인인증 실패: $message", Toast.LENGTH_LONG).show()
+                        }
+                    )
+                }
             }
         }
     }
@@ -573,8 +507,8 @@ fun ProfileRegistrationForm(
             .navigationBarsPadding()
             .imePadding()
             .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -588,194 +522,196 @@ fun ProfileRegistrationForm(
             text = "마트클리닉 서비스를 사용하기 위해 최초 1회 본인 확인 정보 등록이 필요합니다.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        OutlinedTextField(
-            value = name,
-            onValueChange = { 
-                if (it.length <= 20) {
-                    name = it
-                    nameError = if (it.isNotEmpty() && it.length < 2) "이름은 2자 이상이어야 합니다." else null
-                    searchAttempted = false
-                }
-            },
-            label = { Text("이름") },
-            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-            isError = nameError != null,
-            supportingText = { nameError?.let { Text(it) } },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !searchAttempted || matchedResidentNumber == null // Lock if matched
-        )
-
-        OutlinedTextField(
-            value = birthdate,
-            onValueChange = { 
-                val digits = it.filter { c -> c.isDigit() }
-                if (digits.length <= 8) {
-                    birthdate = digits
-                    birthdateError = if (digits.isNotEmpty() && digits.length < 8) "생년월일 8자리를 입력해 주세요 (예: 19800101)" else null
-                    searchAttempted = false
-                    matchedResidentNumber = null
-                    manualRegistration = false
-                }
-            },
-            label = { Text("생년월일 (8자리)") },
-            leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) },
-            isError = birthdateError != null,
-            supportingText = { birthdateError?.let { Text(it) } },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !searchAttempted || matchedResidentNumber == null // Lock if matched
-        )
-
-        if (!searchAttempted || isEmrLoading || (searchAttempted && matchedResidentNumber == null && !manualRegistration)) {
-            Button(
-                onClick = { 
-                    if (isNameValid && isBirthdateValid) {
-                        searchAttempted = true
-                        manualRegistration = false
-                        viewModel.searchEmrPatients(name)
-                    }
-                },
+        if (verifiedCustomer == null) {
+            // Step 1: Request identity verification
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = isNameValid && isBirthdateValid && !isEmrLoading,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             ) {
-                if (isEmrLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onSecondary)
-                } else {
-                    Icon(Icons.Default.Search, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("방문 기록 조회")
-                }
-            }
-        }
-
-        if (searchAttempted && !isEmrLoading) {
-            if (matchedResidentNumber != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    shape = RoundedCornerShape(8.dp)
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "방문 기록이 확인되었습니다.",
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                
-                OutlinedTextField(
-                    value = phoneValue,
-                    onValueChange = { onPhoneChange(it) },
-                    label = { Text("전화번호 (예: 010-1234-5678)") },
-                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                    isError = phoneError != null,
-                    supportingText = { phoneError?.let { Text(it) } },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                if (!manualRegistration) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "일치하는 환자 정보가 없습니다.",
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "정보를 직접 입력하시겠습니까?",
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                    Button(
-                        onClick = { manualRegistration = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ) {
-                        Text("수기 입력")
-                    }
-                } else {
-                    OutlinedTextField(
-                        value = phoneValue,
-                        onValueChange = { onPhoneChange(it) },
-                        label = { Text("전화번호 (예: 010-1234-5678)") },
-                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                        isError = phoneError != null,
-                        supportingText = { phoneError?.let { Text(it) } },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        modifier = Modifier.fillMaxWidth()
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
-
-                    OutlinedTextField(
-                        value = residentValue,
-                        onValueChange = { onResidentChange(it) },
-                        label = { Text("주민등록번호 (예: 000000-0000000)") },
-                        leadingIcon = { Icon(Icons.Default.AccountBox, contentDescription = null) },
-                        isError = residentError != null,
-                        supportingText = { residentError?.let { Text(it) } },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        visualTransformation = ResidentNumberVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
+                    Text(
+                        text = "안전한 비대면 진료를 위한 본인인증",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "의료법에 따라 본인 확인이 필수적입니다. 본인 명의의 휴대폰으로 PASS 혹은 문자(SMS) 인증을 진행해 주세요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+            Button(
+                onClick = { showPortOneWebView = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(Icons.Default.PhoneAndroid, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("휴대폰 본인인증하기", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+            }
+
             OutlinedButton(
                 onClick = onCancel,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Cancel", fontWeight = FontWeight.Bold)
+                Text("취소", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
             }
+        } else {
+            // Step 2: Show verified details & request resident suffix
+            val customer = verifiedCustomer!!
             
-            val canSave = (matchedResidentNumber != null && isPhoneValid) || (manualRegistration && isPhoneValid && isResidentValid)
-            Button(
-                onClick = {
-                    if (matchedResidentNumber != null && isPhoneValid) {
-                        onSubmit(name, phone, matchedResidentNumber!!, false)
-                    } else if (manualRegistration && isPhoneValid && isResidentValid) {
-                        onSubmit(name, phone, residentNumber, true)
-                    }
-                },
-                enabled = canSave,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1.5f)
+            // Format phone number
+            val formattedPhone = formatPhone(normalizePhoneNumber(customer.phoneNumber))
+            // Format birthdate from YYYY-MM-DD to YYYY년 MM월 DD일
+            val formattedBirthDate = formatBirthDate(customer.birthDate)
+            val front6 = getFront6Digits(customer.birthDate)
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
             ) {
-                Text("Save", fontWeight = FontWeight.Bold)
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("본인인증 완료", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("이름", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(customer.name ?: "", fontWeight = FontWeight.Bold)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("전화번호", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(formattedPhone, fontWeight = FontWeight.Bold)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("생년월일", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(formattedBirthDate, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "의료 기록 매칭을 위해 주민등록번호 뒷자리를 입력해 주세요.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Front 6 digits (Prefilled & Disabled)
+                OutlinedTextField(
+                    value = front6,
+                    onValueChange = {},
+                    enabled = false,
+                    label = { Text("앞자리") },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)),
+                    modifier = Modifier.weight(1.2f),
+                    singleLine = true
+                )
+
+                Text("-", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+
+                // Back 7 digits (Input field, limited to 7 characters, masked)
+                OutlinedTextField(
+                    value = residentSuffix,
+                    onValueChange = { input ->
+                        val digits = input.filter { it.isDigit() }
+                        if (digits.length <= 7) {
+                            residentSuffix = digits
+                            residentError = if (digits.length < 7) "뒷자리 7자리를 모두 입력해 주세요." else null
+                        }
+                    },
+                    label = { Text("뒷자리") },
+                    isError = residentError != null,
+                    supportingText = { residentError?.let { Text(it) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    visualTransformation = ResidentSuffixVisualTransformation(),
+                    modifier = Modifier.weight(1.5f),
+                    singleLine = true
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        viewModel.clearVerifiedCustomer()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("재인증", fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        val finalResidentNumber = "$front6-$residentSuffix"
+                        onSubmit(customer.name ?: "", formattedPhone, finalResidentNumber, false)
+                    },
+                    enabled = residentSuffix.length == 7,
+                    modifier = Modifier
+                        .weight(1.5f)
+                        .height(52.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("등록 완료", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -1412,6 +1348,70 @@ class ResidentNumberVisualTransformation : VisualTransformation {
                 transformed.append('*')
             } else {
                 transformed.append(original[i])
+            }
+        }
+        return TransformedText(
+            AnnotatedString(transformed.toString()),
+            OffsetMapping.Identity
+        )
+    }
+}
+
+fun formatPhone(input: String): String {
+    val digits = input.filter { it.isDigit() }
+    return when {
+        digits.length <= 3 -> digits
+        digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
+        else -> "${digits.take(3)}-${digits.substring(3, 7)}-${digits.drop(7).take(4)}"
+    }
+}
+
+fun getGenderDigit(birthDate: String?, gender: String?): String {
+    if (birthDate.isNullOrEmpty() || birthDate.length < 4) return ""
+    val year = birthDate.substring(0, 4).toIntOrNull() ?: return ""
+    return when (gender?.uppercase()) {
+        "MALE" -> if (year >= 2000) "3" else "1"
+        "FEMALE" -> if (year >= 2000) "4" else "2"
+        else -> ""
+    }
+}
+
+fun getFront6Digits(birthDate: String?): String {
+    if (birthDate == null) return ""
+    val digits = birthDate.filter { it.isDigit() }
+    if (digits.length != 8) return ""
+    return digits.substring(2, 8)
+}
+
+fun normalizePhoneNumber(phone: String?): String {
+    if (phone == null) return ""
+    var clean = phone.filter { it.isDigit() }
+    if (phone.startsWith("+82")) {
+        clean = "0" + phone.substring(3).filter { it.isDigit() }
+    } else if (phone.startsWith("82")) {
+        clean = "0" + phone.substring(2).filter { it.isDigit() }
+    }
+    return clean
+}
+
+fun formatBirthDate(birthDate: String?): String {
+    if (birthDate == null) return ""
+    val parts = birthDate.split("-")
+    if (parts.size == 3) {
+        return "${parts[0]}년 ${parts[1]}월 ${parts[2]}일"
+    }
+    return birthDate
+}
+
+class ResidentSuffixVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val original = text.text
+        val transformed = StringBuilder()
+        for (i in original.indices) {
+            if (i == 0) {
+                transformed.append(original[i])
+            } else {
+                transformed.append('●')
             }
         }
         return TransformedText(

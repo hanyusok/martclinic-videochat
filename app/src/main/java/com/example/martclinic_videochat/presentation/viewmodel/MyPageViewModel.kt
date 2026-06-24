@@ -23,6 +23,7 @@ import io.github.jan.supabase.auth.status.SessionStatus
 
 import com.example.martclinic_videochat.domain.model.EmrPatient
 import com.example.martclinic_videochat.domain.repository.EmrRepository
+import com.example.martclinic_videochat.util.PortOneUtil
 
 @HiltViewModel
 class MyPageViewModel @Inject constructor(
@@ -49,6 +50,33 @@ class MyPageViewModel @Inject constructor(
                 _isEmrLoading.value = false
             }
         }
+    }
+
+    private val _verifiedCustomer = MutableStateFlow<PortOneUtil.VerifiedCustomer?>(null)
+    val verifiedCustomer: StateFlow<PortOneUtil.VerifiedCustomer?> = _verifiedCustomer.asStateFlow()
+
+    fun verifyPortOneIdentity(identityVerificationId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val customer = PortOneUtil.getVerifiedCustomer(identityVerificationId)
+                if (customer != null) {
+                    _verifiedCustomer.value = customer
+                    onSuccess()
+                } else {
+                    onError("본인인증 검증에 실패했습니다. 다시 시도해주세요.")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onError("인증 처리 중 오류가 발생했습니다.")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun clearVerifiedCustomer() {
+        _verifiedCustomer.value = null
     }
 
     private val _patients = MutableStateFlow<List<Patient>>(emptyList())
@@ -189,7 +217,8 @@ class MyPageViewModel @Inject constructor(
                 
                 if (!skipEmrCheck) {
                     // Identity Confirmation Step
-                    val emrRecord = emrRepository.confirmIdentity(nameInput, residentInput)
+                    val birthDate = extractBirthDateFromResidentNumber(residentInput)
+                    val emrRecord = birthDate?.let { emrRepository.confirmIdentity(nameInput, it) }
                     if (emrRecord != null) {
                         clinicPatientNumber = emrRecord.emr_patient_number?.toString()
                     }
@@ -315,7 +344,8 @@ class MyPageViewModel @Inject constructor(
                 // EMR 연동 시 이름과 주민번호 전체를 사용하여 동명이인 노출 위험을 차단합니다.
                 val name = patient.name ?: ""
                 val residentNumber = patient.resident_number ?: ""
-                val emrRecord = emrRepository.confirmIdentity(name, residentNumber)
+                val birthDate = extractBirthDateFromResidentNumber(residentNumber)
+                val emrRecord = birthDate?.let { emrRepository.confirmIdentity(name, it) }
                 if (emrRecord != null) {
                     val updated = patient.copy(
                         name = emrRecord.name ?: patient.name,
@@ -355,5 +385,26 @@ class MyPageViewModel @Inject constructor(
                 _isLoading.value = false
             }
         }
+    }
+
+    private fun extractBirthDateFromResidentNumber(residentNumber: String?): String? {
+        if (residentNumber == null) return null
+        val cleanNumber = residentNumber.replace("-", "")
+        if (cleanNumber.length < 7) return null
+        
+        val yy = cleanNumber.substring(0, 2)
+        val mm = cleanNumber.substring(2, 4)
+        val dd = cleanNumber.substring(4, 6)
+        val genderDigit = cleanNumber.substring(6, 7)
+        
+        val yearPrefix = if (genderDigit == "1" || genderDigit == "2" || genderDigit == "5" || genderDigit == "6") {
+            "19"
+        } else if (genderDigit == "3" || genderDigit == "4" || genderDigit == "7" || genderDigit == "8") {
+            "20"
+        } else {
+            "19" // Fallback
+        }
+        
+        return "$yearPrefix$yy-$mm-$dd"
     }
 }
