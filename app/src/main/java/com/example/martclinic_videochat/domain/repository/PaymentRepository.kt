@@ -4,6 +4,7 @@ import com.example.martclinic_videochat.domain.model.Payment
 
 interface PaymentRepository {
     suspend fun createPayment(payment: Payment)
+    suspend fun createPaymentIfNotExists(payment: Payment): Boolean
     suspend fun getPaymentsForAppointment(appointmentId: String): List<Payment>
     suspend fun updatePaymentStatus(appointmentId: String, status: String)
 }

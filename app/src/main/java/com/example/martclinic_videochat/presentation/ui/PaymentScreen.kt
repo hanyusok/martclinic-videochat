@@ -75,12 +75,6 @@ fun PaymentScreen(
                             contentDescription = "닫기"
                         )
                     }
-                },
-                actions = {
-                    // For testing purpose: trigger success
-                    androidx.compose.material3.TextButton(onClick = { onPaymentSuccess("success") }) {
-                        androidx.compose.material3.Text("테스트: 결제 완료")
-                    }
                 }
             )
         }
@@ -161,6 +155,7 @@ private fun createPaymentWebViewClient(
             onSuccess(url)
             return true
         } else if (url.contains("payment_fail") || url.contains("v1/payments/fail")) {
+            android.widget.Toast.makeText(context, "결제가 취소되거나 실패했습니다.", android.widget.Toast.LENGTH_SHORT).show()
             onFailure(url)
             return true
         }

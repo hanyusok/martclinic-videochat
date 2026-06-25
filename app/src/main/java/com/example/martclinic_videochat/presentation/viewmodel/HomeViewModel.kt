@@ -104,17 +104,19 @@ class HomeViewModel @Inject constructor(
                         if (pcode != null) {
                             try {
                                 val cost = emrRepository.getTodayConsultationCost(pcode)
-                                pollingDelay = 5000L
                                 if (cost != null) {
                                     if (cost != standby.payment_amount) {
                                         Log.d(TAG, "[CostPolling] EMR cost updated: prev=${standby.payment_amount} -> new=$cost for pcode=$pcode, appointment=${standby.id}")
                                         appointmentRepository.updateAppointmentPaymentAmount(standby.id!!, cost)
                                         loadActivePatientAndAppointments()
+                                        pollingDelay = 5000L // Reset delay on update
                                     } else {
                                         Log.d(TAG, "[CostPolling] EMR cost unchanged: $cost for pcode=$pcode, no Supabase update needed")
+                                        pollingDelay = (pollingDelay + 2000L).coerceAtMost(30000L) // Progressive backoff max 30s
                                     }
                                 } else {
                                     Log.d(TAG, "[CostPolling] EMR cost not yet available for pcode=$pcode")
+                                    pollingDelay = (pollingDelay + 2000L).coerceAtMost(30000L)
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "[CostPolling] EMR getTodayConsultationCost FAILED for pcode=$pcode", e)
@@ -123,6 +125,9 @@ class HomeViewModel @Inject constructor(
                             }
                         }
                     }
+                } else {
+                    // Reset delay when not in payment_pending state
+                    pollingDelay = 5000L
                 }
                 delay(pollingDelay)
             }
@@ -162,24 +167,26 @@ class HomeViewModel @Inject constructor(
             try {
                 Log.d(TAG, "[HomeViewModel] processPayment: appointmentId=$appointmentId -> status=${Appointment.STATUS_WAITING}")
                 
+                // Find the appointment in our local list BEFORE changing its status to avoid race conditions
+                val appointmentToPay = appointments.value.find { it.id == appointmentId }
+                val targetPatientId = appointmentToPay?.patient_id ?: patient.value?.id
+                val targetAmount = amount ?: appointmentToPay?.payment_amount
+                
                 // Update appointment status
                 appointmentRepository.updateAppointmentStatus(appointmentId, Appointment.STATUS_WAITING)
                 
                 // Log detailed transaction if data is present
-                val currentPatientId = activeStandby.value?.patient_id ?: patient.value?.id
-                if (currentPatientId != null) {
-                    val existingPayments = paymentRepository.getPaymentsForAppointment(appointmentId)
-                    val hasSuccessPayment = existingPayments.any { it.status == "SUCCESS" }
-                    if (!hasSuccessPayment) {
-                        val paymentRecord = Payment(
-                            appointment_id = appointmentId,
-                            patient_id = currentPatientId,
-                            transaction_id = transactionId,
-                            amount = amount ?: activeStandby.value?.payment_amount,
-                            pay_method = payMethod,
-                            status = "SUCCESS"
-                        )
-                        paymentRepository.createPayment(paymentRecord)
+                if (targetPatientId != null) {
+                    val paymentRecord = Payment(
+                        appointment_id = appointmentId,
+                        patient_id = targetPatientId,
+                        transaction_id = transactionId,
+                        amount = targetAmount,
+                        pay_method = payMethod,
+                        status = "SUCCESS"
+                    )
+                    val inserted = paymentRepository.createPaymentIfNotExists(paymentRecord)
+                    if (inserted) {
                         Log.d(TAG, "[HomeViewModel] Detailed transaction logged to payments table: TID=$transactionId")
                     } else {
                         Log.d(TAG, "[HomeViewModel] Payment already exists for appointmentId=$appointmentId. Skipping duplicate insert.")

@@ -262,3 +262,31 @@ create policy "Patients can update their own prescriptions" on prescriptions
       select id from patients where user_id = auth.uid()
     )
   ));
+
+-- 7. Payments
+create table payments (
+  id uuid primary key default gen_random_uuid(),
+  appointment_id uuid references appointments(id),
+  patient_id uuid references patients(id),
+  transaction_id text,
+  amount integer,
+  pay_method text,
+  status text,
+  created_at timestamp with time zone default now()
+);
+
+alter table payments enable row level security;
+
+-- Payments Policy: 환자는 자신의 결제 내역만 관리, 관리자는 모두 관리
+create policy "Patients and admins can manage payments" on payments
+  for all to authenticated
+  using (
+    patient_id in (select id from patients where user_id = auth.uid())
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  )
+  with check (
+    patient_id in (select id from patients where user_id = auth.uid())
+    or
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );

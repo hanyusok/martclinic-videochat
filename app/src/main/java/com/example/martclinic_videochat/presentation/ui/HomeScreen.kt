@@ -318,7 +318,7 @@ fun StandbyStatusCard(
                 Appointment.STATUS_CALLING -> "아래 버튼을 눌러 영상 진료실에 입장하세요."
                 Appointment.STATUS_PAYMENT_PENDING -> {
                     if (appointment.payment_amount == null) "진료비용을 산정 중입니다. 잠시만 기다려주세요..."
-                    else "원활한 진료를 위해 사전 결제(${appointment.payment_amount}원)를 진행해주세요."
+                    else "원활한 대기열 등록을 위해 수납을 진행해 주세요."
                 }
                 else -> "예상 대기 시간: 약 ${appointment.estimated_wait_minutes ?: 15}분"
             }
@@ -338,15 +338,43 @@ fun StandbyStatusCard(
                         color = MaterialTheme.colorScheme.error
                     )
                 } else {
-                    Button(
-                        onClick = { onPay?.invoke() },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    // Eye-catching Suggestion Alert for EMR Cost
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Payment, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("결제 후 대기열 등록", fontWeight = FontWeight.Bold)
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Info, contentDescription = "Info", tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "건강보험 적용된 본인부담금액이 같이 조회되었습니다.",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { onPay?.invoke() },
+                                modifier = Modifier.fillMaxWidth().height(56.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Icon(imageVector = Icons.Default.Payment, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                val amountStr = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(appointment.payment_amount)
+                                Text("$amountStr 원 간편 결제하기", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
                     }
                 }
             } else {

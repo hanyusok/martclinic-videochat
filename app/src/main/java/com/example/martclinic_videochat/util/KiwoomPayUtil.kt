@@ -82,4 +82,68 @@ object KiwoomPayUtil {
             </html>
         """.trimIndent()
     }
+
+    suspend fun cancelPayment(tid: String, amount: Int, payMethod: String, cancelReason: String = "관리자 취소"): Boolean = withContext(Dispatchers.IO) {
+        val authKey = "d42495e1a0ed095ed1d05b5945f8e1408192d6c68081cb0682331b6d612ec460"
+        try {
+            val jsonPayload = JSONObject().apply {
+                put("CPID", CPID)
+                put("PAYMETHOD", if (payMethod == "CARD") "CARD_CANCEL" else payMethod + "_CANCEL")
+                put("AMOUNT", amount.toString())
+                put("CANCELREQ", "Y")
+                put("TRXID", tid)
+                put("CANCELREASON", cancelReason)
+                put("TAXFREEAMT", "0")
+            }.toString()
+
+            // 1. Ready Step
+            val readyUrl = URL("https://api.kiwoompay.co.kr/pay/ready")
+            val readyConn = readyUrl.openConnection() as HttpURLConnection
+            readyConn.requestMethod = "POST"
+            readyConn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            readyConn.setRequestProperty("Authorization", authKey)
+            readyConn.doOutput = true
+
+            readyConn.outputStream.use { os ->
+                val input = jsonPayload.toByteArray(Charsets.UTF_8)
+                os.write(input, 0, input.size)
+            }
+
+            if (readyConn.responseCode != 200) {
+                return@withContext false
+            }
+
+            val readyResponseStr = readyConn.inputStream.bufferedReader().use { it.readText() }
+            val readyJson = JSONObject(readyResponseStr)
+            val token = readyJson.optString("TOKEN")
+            val returnUrlStr = readyJson.optString("RETURNURL")
+
+            if (token.isBlank() || returnUrlStr.isBlank()) {
+                return@withContext false
+            }
+
+            // 2. Execute Cancel
+            val executeUrl = URL(returnUrlStr)
+            val execConn = executeUrl.openConnection() as HttpURLConnection
+            execConn.requestMethod = "POST"
+            execConn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            execConn.setRequestProperty("Authorization", authKey)
+            execConn.setRequestProperty("TOKEN", token)
+            execConn.doOutput = true
+
+            execConn.outputStream.use { os ->
+                val input = jsonPayload.toByteArray(Charsets.UTF_8)
+                os.write(input, 0, input.size)
+            }
+
+            if (execConn.responseCode == 200) {
+                val execResponseStr = execConn.inputStream.bufferedReader().use { it.readText() }
+                val execJson = JSONObject(execResponseStr)
+                return@withContext execJson.optString("RESULTCODE") == "0000"
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return@withContext false
+    }
 }

@@ -21,6 +21,23 @@ class PaymentRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun createPaymentIfNotExists(payment: Payment): Boolean {
+        Log.d(TAG, "[Supabase] createPaymentIfNotExists: appointment_id=${payment.appointment_id}")
+        return try {
+            val existing = getPaymentsForAppointment(payment.appointment_id)
+            if (existing.any { it.status == "SUCCESS" }) {
+                Log.d(TAG, "[Supabase] createPaymentIfNotExists: SUCCESS payment already exists")
+                false
+            } else {
+                createPayment(payment)
+                true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "[Supabase] createPaymentIfNotExists FAILED", e)
+            false
+        }
+    }
+
     override suspend fun getPaymentsForAppointment(appointmentId: String): List<Payment> {
         Log.d(TAG, "[Supabase] getPaymentsForAppointment: appointment_id=$appointmentId")
         return try {

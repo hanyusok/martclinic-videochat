@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import javax.inject.Inject
 
 @HiltViewModel
@@ -54,34 +56,57 @@ class AdminViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    val stats = allAppointments.map { appointments ->
+    val stats: StateFlow<AdminStats> = _allAppointments.map { list ->
         AdminStats(
             totalPatients = _allPatients.value.size,
-            activeAppointments = appointments.count { it.status in Appointment.ACTIVE_STATUSES },
-            completedAppointmentsToday = appointments.count { it.status == Appointment.STATUS_COMPLETED },
-            totalRevenueToday = appointments.filter { it.status == Appointment.STATUS_COMPLETED }
+            activeAppointments = list.count { it.status in Appointment.ACTIVE_STATUSES },
+            completedAppointmentsToday = list.count { it.status == Appointment.STATUS_COMPLETED },
+            totalRevenueToday = list.filter { it.status == Appointment.STATUS_COMPLETED }
                 .sumOf { it.payment_amount ?: 0 }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AdminStats())
+
+    private var pollingJob: Job? = null
+
     init {
-        loadDashboardData()
+        startPolling()
     }
 
-    fun loadDashboardData() {
+    private fun startPolling() {
+        if (pollingJob?.isActive == true) return
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                // Background polling to keep dashboard synced
+                loadDashboardData(isBackgroundPoll = true)
+                delay(5000L) // Poll every 5 seconds
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        pollingJob?.cancel()
+    }
+
+    fun loadDashboardData(isBackgroundPoll: Boolean = false) {
         viewModelScope.launch {
-            _isLoading.value = true
+            if (!isBackgroundPoll) {
+                _isLoading.value = true
+            }
             try {
-                Log.d(TAG, "[Admin] loadDashboardData start")
+                if (!isBackgroundPoll) Log.d("AdminViewModel", "[Admin] loadDashboardData start")
                 _currentUserProfile.value = userRepository.getCurrentUserProfile()
                 _allPatients.value = patientRepository.getAllPatients()
                 _allAppointments.value = appointmentRepository.getAllAppointments()
                 _masterPharmacies.value = pharmacyRepository.getMasterPharmacies()
-                Log.d(TAG, "[Admin] loadDashboardData success: patients=${_allPatients.value.size}, appointments=${_allAppointments.value.size}")
+                if (!isBackgroundPoll) Log.d("AdminViewModel", "[Admin] loadDashboardData success: patients=${_allPatients.value.size}, appointments=${_allAppointments.value.size}")
             } catch (e: Exception) {
-                Log.e(TAG, "[Admin] loadDashboardData FAILED", e)
+                if (!isBackgroundPoll) Log.e("AdminViewModel", "[Admin] loadDashboardData FAILED", e)
                 e.printStackTrace()
             } finally {
-                _isLoading.value = false
+                if (!isBackgroundPoll) {
+                    _isLoading.value = false
+                }
             }
         }
     }
@@ -115,21 +140,18 @@ class AdminViewModel @Inject constructor(
                 
                 // If status changed to completed or waiting, ensure a payment record exists (for offline payments)
                 if (status == Appointment.STATUS_WAITING || status == Appointment.STATUS_COMPLETED) {
-                    val existingPayments = paymentRepository.getPaymentsForAppointment(appointmentId)
-                    val hasSuccessPayment = existingPayments.any { it.status == "SUCCESS" }
-                    if (!hasSuccessPayment) {
-                        // Create offline payment record
-                        val appointment = _allAppointments.value.find { it.id == appointmentId }
-                        if (appointment != null) {
-                            val paymentRecord = Payment(
-                                appointment_id = appointmentId,
-                                patient_id = appointment.patient_id,
-                                transaction_id = "OFFLINE_PAYMENT",
-                                amount = paymentAmount ?: appointment.payment_amount,
-                                pay_method = "OFFLINE",
-                                status = "SUCCESS"
-                            )
-                            paymentRepository.createPayment(paymentRecord)
+                    val appointment = _allAppointments.value.find { it.id == appointmentId }
+                    if (appointment != null) {
+                        val paymentRecord = Payment(
+                            appointment_id = appointmentId,
+                            patient_id = appointment.patient_id,
+                            transaction_id = "OFFLINE_PAYMENT",
+                            amount = paymentAmount ?: appointment.payment_amount ?: 0,
+                            pay_method = "OFFLINE",
+                            status = "SUCCESS"
+                        )
+                        val inserted = paymentRepository.createPaymentIfNotExists(paymentRecord)
+                        if (inserted) {
                             Log.d(TAG, "[Admin] Created OFFLINE payment record for appointmentId=$appointmentId")
                         }
                     }
@@ -151,6 +173,24 @@ class AdminViewModel @Inject constructor(
             _isLoading.value = true
             try {
                 Log.d(TAG, "[Admin] cancelPayment: appointmentId=$appointmentId")
+                
+                val payments = paymentRepository.getPaymentsForAppointment(appointmentId)
+                val successPayment = payments.find { it.status == "SUCCESS" }
+                
+                if (successPayment != null && successPayment.transaction_id != "OFFLINE_PAYMENT") {
+                    val tid = successPayment.transaction_id
+                    val amount = successPayment.amount ?: 0
+                    val payMethod = successPayment.pay_method ?: "CARD"
+                    if (!tid.isNullOrBlank()) {
+                        val isCancelled = com.example.martclinic_videochat.util.KiwoomPayUtil.cancelPayment(tid, amount, payMethod)
+                        if (!isCancelled) {
+                            Log.e(TAG, "[Admin] Failed to cancel payment in KiwoomPay S2S API for tid=$tid")
+                            _isLoading.value = false
+                            return@launch
+                        }
+                        Log.d(TAG, "[Admin] KiwoomPay cancellation successful for tid=$tid")
+                    }
+                }
                 
                 // Update appointment status back to pending
                 appointmentRepository.updateAppointmentStatus(appointmentId, Appointment.STATUS_PAYMENT_PENDING)

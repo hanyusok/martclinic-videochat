@@ -511,7 +511,6 @@ fun AppointmentDetailPane(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    
                     Spacer(modifier = Modifier.weight(1f))
                     if (patient != null) {
                         TextButton(
