@@ -496,9 +496,9 @@ fun AppointmentDetailPane(
                     Text("진료 결제 금액 (원)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.width(8.dp))
                     
-                    val isPaymentPending = appointment.status == "payment_pending"
-                    val paymentStatusText = if (isPaymentPending) "미결제 (결제 대기)" else "결제 완료"
-                    val paymentStatusColor = if (isPaymentPending) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    val isPaymentCompleted = payment?.status == "SUCCESS"
+                    val paymentStatusText = if (isPaymentCompleted) "결제 완료" else "미결제 (또는 결제 대기)"
+                    val paymentStatusColor = if (isPaymentCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                     Surface(
                         color = paymentStatusColor.copy(alpha = 0.1f),
                         contentColor = paymentStatusColor,
