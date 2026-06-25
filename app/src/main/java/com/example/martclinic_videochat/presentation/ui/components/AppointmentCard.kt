@@ -96,7 +96,7 @@ fun AppointmentCard(
             }
 
             // Entry Button for ongoing consults
-            if (appointment.status in listOf("confirmed", Appointment.STATUS_IN_PROGRESS) && !appointment.meet_link.isNullOrBlank()) {
+            if (appointment.status in listOf("confirmed", "waiting", "calling", Appointment.STATUS_IN_PROGRESS) && !appointment.meet_link.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = { onEnterConsultation?.invoke() },

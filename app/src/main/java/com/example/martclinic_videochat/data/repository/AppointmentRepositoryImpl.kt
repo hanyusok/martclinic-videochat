@@ -4,10 +4,28 @@ import android.util.Log
 import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.repository.AppointmentRepository
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.functions.Functions
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 
+@Serializable
+private data class GenerateMeetLinkRequest(
+    val appointment_id: String
+)
+
+@Serializable
+private data class GenerateMeetLinkResponse(
+    val meet_link: String
+)
+
 class AppointmentRepositoryImpl @Inject constructor(
-    private val postgrest: Postgrest
+    private val postgrest: Postgrest,
+    private val functions: Functions
 ) : AppointmentRepository {
 
     override suspend fun getAppointments(patientId: String): List<Appointment> {
@@ -108,6 +126,42 @@ class AppointmentRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "[Supabase] updateAppointmentPaymentAmount UPDATE FAILED for id=$id", e)
             e.printStackTrace()
+        }
+    }
+
+    override suspend fun getQueuePosition(appointmentId: String): Int? {
+        Log.d(TAG, "[Supabase] getQueuePosition: appointmentId=$appointmentId")
+        return try {
+            val response = postgrest.rpc(
+                "get_active_queue_position",
+                buildJsonObject {
+                    put("target_id", appointmentId)
+                }
+            )
+            val pos = response.decodeSingleOrNull<Int>()
+            Log.d(TAG, "[Supabase] getQueuePosition success: $pos")
+            pos
+        } catch (e: Exception) {
+            Log.e(TAG, "[Supabase] getQueuePosition FAILED for appointmentId=$appointmentId", e)
+            e.printStackTrace()
+            null
+        }
+    }
+
+    override suspend fun generateMeetLink(appointmentId: String): String {
+        Log.d(TAG, "[Supabase] generateMeetLink: appointmentId=$appointmentId")
+        return try {
+            val response = functions.invoke("generate-meet-link") {
+                method = io.ktor.http.HttpMethod.Post
+                setBody(GenerateMeetLinkRequest(appointmentId))
+            }
+            val responseText = response.bodyAsText()
+            val responseData = Json.decodeFromString<GenerateMeetLinkResponse>(responseText)
+            Log.d(TAG, "[Supabase] generateMeetLink success: ${responseData.meet_link}")
+            responseData.meet_link
+        } catch (e: Exception) {
+            Log.e(TAG, "[Supabase] generateMeetLink FAILED for appointmentId=$appointmentId", e)
+            throw e
         }
     }
 

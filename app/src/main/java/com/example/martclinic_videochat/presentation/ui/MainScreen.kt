@@ -169,9 +169,11 @@ fun MainScreen() {
                             appointmentId = payment.appointmentId,
                             transactionId = tid,
                             amount = amount,
-                            payMethod = payMethod
+                            payMethod = payMethod,
+                            onComplete = { success ->
+                                navController.popBackStack()
+                            }
                         )
-                        navController.popBackStack()
                     },
                     onPaymentFailure = {
                         navController.popBackStack()

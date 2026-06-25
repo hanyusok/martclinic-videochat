@@ -1,5 +1,6 @@
 package com.example.martclinic_videochat.presentation.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,6 +49,7 @@ fun HomeScreen(
     val activeStandby by viewModel.activeStandby.collectAsStateWithLifecycle()
     val otherAppointments by viewModel.otherAppointments.collectAsStateWithLifecycle()
     val needsProfileUpdate by viewModel.needsProfileUpdate.collectAsStateWithLifecycle()
+    val queuePosition by viewModel.queuePosition.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
@@ -86,7 +88,17 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(onClick = { viewModel.loadActivePatientAndAppointments() }) {
+                    IconButton(onClick = {
+                        viewModel.loadActivePatientAndAppointments(
+                            onComplete = { success ->
+                                if (success) {
+                                    android.widget.Toast.makeText(context, "최신 정보로 업데이트되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    android.widget.Toast.makeText(context, "네트워크 동기화에 실패했습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
+                    }) {
                         Icon(imageVector = Icons.Default.Refresh, contentDescription = "새로고침")
                     }
                 }
@@ -131,6 +143,7 @@ fun HomeScreen(
                         StandbyStatusCard(
                             appointment = standby,
                             patientName = standbyPatient?.name,
+                            queuePosition = queuePosition,
                             onJoinCall = {
                                 if (!standby.meet_link.isNullOrBlank()) {
                                     MeetUtil.openGoogleMeet(context, standby.meet_link)
@@ -225,26 +238,121 @@ fun ProfileReminderBanner(onClick: () -> Unit) {
 }
 
 @Composable
+fun HorizontalStepper(
+    activeStepIndex: Int,
+    modifier: Modifier = Modifier
+) {
+    val steps = listOf("접수", "보험조회", "수납결제", "영상대기", "진료입장")
+    
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        steps.forEachIndexed { index, stepTitle ->
+            val stepNumber = index + 1
+            val isCompleted = stepNumber < activeStepIndex
+            val isActive = stepNumber == activeStepIndex
+
+            // Node Column
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.width(56.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                isCompleted -> MaterialTheme.colorScheme.primary
+                                isActive -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        )
+                ) {
+                    if (isCompleted) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    } else {
+                        Text(
+                            text = stepNumber.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                isActive -> MaterialTheme.colorScheme.onSecondary
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stepTitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                    color = when {
+                        isActive -> MaterialTheme.colorScheme.secondary
+                        isCompleted -> MaterialTheme.colorScheme.onSurface
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    },
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // Connector Line
+            if (index < steps.size - 1) {
+                val lineColor = if (stepNumber < activeStepIndex) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(top = 11.dp) // center of 24.dp circle
+                        .height(2.dp)
+                        .background(lineColor)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun StandbyStatusCard(
     appointment: Appointment,
     patientName: String? = null,
+    queuePosition: Int? = null,
     onJoinCall: () -> Unit,
     onPay: (() -> Unit)? = null
 ) {
-    val isCalling = appointment.status == Appointment.STATUS_CALLING
-    
+    val activeStepIndex = when {
+        appointment.status in listOf("calling", "in_progress") -> 5
+        appointment.status == Appointment.STATUS_WAITING -> 4
+        appointment.status == Appointment.STATUS_PAYMENT_PENDING && appointment.payment_amount != null -> 3
+        appointment.status == Appointment.STATUS_PAYMENT_PENDING && appointment.payment_amount == null -> 2
+        else -> 1
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isCalling) MaterialTheme.colorScheme.secondaryContainer 
-                             else MaterialTheme.colorScheme.tertiaryContainer
+            containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -252,151 +360,254 @@ fun StandbyStatusCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 val titlePrefix = if (patientName != null) "[$patientName] " else ""
-                val titleText = when (appointment.status) {
-                    Appointment.STATUS_CALLING -> "🔔 ${titlePrefix}의사가 대기 중입니다!"
-                    Appointment.STATUS_PAYMENT_PENDING -> "💳 ${titlePrefix}결제 대기 중"
-                    else -> "⏳ ${titlePrefix}진료 대기 중"
-                }
                 Text(
-                    text = titleText,
+                    text = "${titlePrefix}진료 진행 단계",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (isCalling) MaterialTheme.colorScheme.onSecondaryContainer 
-                            else MaterialTheme.colorScheme.onTertiaryContainer
+                    color = MaterialTheme.colorScheme.primary
                 )
+                
                 Surface(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                    shape = CircleShape
+                    color = appointment.getStatusColor().copy(alpha = 0.1f),
+                    contentColor = appointment.getStatusColor(),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "대기번호 #${appointment.queue_number ?: " - "}",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
+                        text = when (appointment.status) {
+                            "waiting" -> "대기 중"
+                            "calling" -> "진료 입장 대기"
+                            "in_progress" -> "진료 중"
+                            "payment_pending" -> {
+                                if (appointment.payment_amount == null) "진료비 산정 중" else "수납 대기"
+                            }
+                            else -> appointment.statusText
+                        },
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Big Rank / Wait Time Circle
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)),
-                contentAlignment = Alignment.Center
+            // Horizontal Stepper Progress Indicator
+            HorizontalStepper(activeStepIndex = activeStepIndex)
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+            // Active Step Content Column
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    val statusLabel = when (appointment.status) {
-                        Appointment.STATUS_CALLING -> "NOW"
-                        Appointment.STATUS_PAYMENT_PENDING -> "필수"
-                        else -> "대기 중"
-                    }
-                    val statusText = when (appointment.status) {
-                        Appointment.STATUS_CALLING -> "진료중"
-                        Appointment.STATUS_PAYMENT_PENDING -> "결제"
-                        else -> "순서"
-                    }
-                    Text(
-                        text = statusLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
+                val activeStepTitle = when (activeStepIndex) {
+                    1 -> "진료 접수 완료"
+                    2 -> "건강보험 진료비 조회"
+                    3 -> "진료비 결제"
+                    4 -> "대기열 등록 및 영상 대기"
+                    5 -> "진료실 입장"
+                    else -> ""
+                }
+                
+                val activeStepIcon = when (activeStepIndex) {
+                    1 -> Icons.Default.CheckCircle
+                    2 -> Icons.Default.HourglassTop
+                    3 -> Icons.Default.Payment
+                    4 -> Icons.Default.HourglassEmpty
+                    5 -> Icons.Default.VideoCall
+                    else -> Icons.Default.Info
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = activeStepIcon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
+                        text = activeStepTitle,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            val waitTimeText = when (appointment.status) {
-                Appointment.STATUS_CALLING -> "아래 버튼을 눌러 영상 진료실에 입장하세요."
-                Appointment.STATUS_PAYMENT_PENDING -> {
-                    if (appointment.payment_amount == null) "진료비용을 산정 중입니다. 잠시만 기다려주세요..."
-                    else "원활한 대기열 등록을 위해 수납을 진행해 주세요."
-                }
-                else -> "예상 대기 시간: 약 ${appointment.estimated_wait_minutes ?: 15}분"
-            }
-            Text(
-                text = waitTimeText,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = if (appointment.status == Appointment.STATUS_PAYMENT_PENDING) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (appointment.status == Appointment.STATUS_PAYMENT_PENDING) {
-                if (appointment.payment_amount == null) {
-                    androidx.compose.material3.CircularProgressIndicator(
-                        modifier = Modifier.size(48.dp),
-                        color = MaterialTheme.colorScheme.error
-                    )
-                } else {
-                    // Eye-catching Suggestion Alert for EMR Cost
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Info, contentDescription = "Info", tint = MaterialTheme.colorScheme.onTertiaryContainer)
-                                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(modifier = Modifier.padding(12.dp)) {
+                        when (activeStepIndex) {
+                            1 -> {
                                 Text(
-                                    text = "건강보험 적용된 본인부담금액이 같이 조회되었습니다.",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    fontWeight = FontWeight.Bold
+                                    text = "비대면 진료 접수가 정상적으로 완료되었습니다.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = { onPay?.invoke() },
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {
-                                Icon(imageVector = Icons.Default.Payment, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                val amountStr = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(appointment.payment_amount)
-                                Text("$amountStr 원 간편 결제하기", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                            2 -> {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "EMR에서 건강보험 적용 본인부담금을 확인하고 있습니다. 잠시만 대기해 주세요...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            3 -> {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = "Info",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "건강보험 적용 본인부담금 수납이 필요합니다.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    
+                                    appointment.payment_amount?.let { amount ->
+                                        Button(
+                                            onClick = { onPay?.invoke() },
+                                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.primary,
+                                                contentColor = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Payment, 
+                                                contentDescription = null,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            val amountStr = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(amount)
+                                            Text(
+                                                text = "$amountStr 원 간편 결제하기",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            4 -> {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "대기번호: #${appointment.queue_number ?: "-"}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "내 앞 대기자: ${queuePosition ?: 0}명",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Text(
+                                        text = "예상 대기 시간: 약 ${(queuePosition ?: 0) * 5 + 5}분",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    
+                                    val hasMeetLink = !appointment.meet_link.isNullOrBlank()
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    
+                                    Button(
+                                        onClick = onJoinCall,
+                                        enabled = hasMeetLink,
+                                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = if (hasMeetLink) Icons.Default.VideoCall else Icons.Default.HourglassEmpty,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = if (hasMeetLink) "영상 진료방 개설 및 입장" else "순서가 되면 진료방이 준비됩니다",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    
+                                    if (hasMeetLink) {
+                                        Text(
+                                            text = "* 환자 본인이 먼저 입장하여 진료실을 개설합니다. 이후 의사가 입장하여 진료가 개시됩니다.",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                            5 -> {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = "의사가 대기 중입니다! 아래 버튼을 눌러 즉시 입장하세요.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Button(
+                                        onClick = onJoinCall,
+                                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.secondary
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.VideoCall, 
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(text = "영상 진료 입장하기", fontWeight = FontWeight.Bold)
+                                    }
+                                    Text(
+                                        text = "* 진료방 입장 후 의사가 아직 입장하지 않았다면 의사 호출을 시도해 주세요.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
-                }
-            } else {
-                Button(
-                    onClick = onJoinCall,
-                    enabled = isCalling || appointment.status == Appointment.STATUS_IN_PROGRESS,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                    )
-                ) {
-                    Icon(
-                        imageVector = if (isCalling) Icons.Default.VideoCall else Icons.Default.HourglassEmpty,
-                        contentDescription = null
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isCalling) "영상 진료 입장하기" else "순서가 되면 버튼이 활성화됩니다",
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
         }
@@ -443,7 +654,11 @@ fun WelcomeBanner(patientName: String) {
                 .background(gradient)
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "안녕하세요, ${patientName}님!",
@@ -457,6 +672,12 @@ fun WelcomeBanner(patientName: String) {
                         color = Color.White.copy(alpha = 0.8f)
                     )
                 }
+                Icon(
+                    imageVector = Icons.Default.MedicalServices,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.size(32.dp)
+                )
             }
         }
     }
@@ -466,42 +687,76 @@ fun WelcomeBanner(patientName: String) {
 fun StatsRow(total: Int, active: Int, completed: Int) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        StatCard(title = "전체", count = total, modifier = Modifier.weight(1f))
-        StatCard(title = "대기/진행", count = active, modifier = Modifier.weight(1f), isHighlight = true)
-        StatCard(title = "완료", count = completed, modifier = Modifier.weight(1f))
+        StatCard(
+            title = "전체", 
+            count = total, 
+            icon = Icons.Default.Assignment, 
+            modifier = Modifier.weight(1f)
+        )
+        StatCard(
+            title = "대기/진행", 
+            count = active, 
+            icon = Icons.Default.HourglassTop, 
+            isHighlight = true, 
+            modifier = Modifier.weight(1f)
+        )
+        StatCard(
+            title = "완료", 
+            count = completed, 
+            icon = Icons.Default.CheckCircle, 
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
 @Composable
-fun StatCard(title: String, count: Int, modifier: Modifier = Modifier, isHighlight: Boolean = false) {
+fun StatCard(
+    title: String, 
+    count: Int, 
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier, 
+    isHighlight: Boolean = false
+) {
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isHighlight) MaterialTheme.colorScheme.primaryContainer 
-                             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         )
     ) {
-        Column(
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp, horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isHighlight) MaterialTheme.colorScheme.onPrimaryContainer 
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (isHighlight) MaterialTheme.colorScheme.primary 
+                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (isHighlight) MaterialTheme.colorScheme.primary 
-                        else MaterialTheme.colorScheme.onSurface
-            )
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 10.sp,
+                    color = if (isHighlight) MaterialTheme.colorScheme.onPrimaryContainer 
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isHighlight) MaterialTheme.colorScheme.primary 
+                            else MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
     }
 }

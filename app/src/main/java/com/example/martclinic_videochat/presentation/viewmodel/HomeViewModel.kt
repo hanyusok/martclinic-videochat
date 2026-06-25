@@ -78,12 +78,15 @@ class HomeViewModel @Inject constructor(
 
     private var pollingJob: kotlinx.coroutines.Job? = null
 
+    private val _queuePosition = MutableStateFlow<Int?>(null)
+    val queuePosition: StateFlow<Int?> = _queuePosition.asStateFlow()
+
     init {
         viewModelScope.launch {
             auth.sessionStatus.collectLatest { status ->
                 if (status is SessionStatus.Authenticated) {
-                    loadActivePatientAndAppointments()
-                    startCostPolling()
+                    loadActivePatientAndAppointments().join()
+                    startPolling()
                 } else {
                     pollingJob?.cancel()
                 }
@@ -91,53 +94,66 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun startCostPolling() {
+    private fun startPolling() {
         if (pollingJob?.isActive == true) return
         pollingJob = viewModelScope.launch {
-            var pollingDelay = 5000L
-            while(true) {
+            while (true) {
+                // 1. Refresh patient & appointments in the background silently
+                try {
+                    loadActivePatientAndAppointments(isBackgroundPoll = true).join()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
                 val standby = activeStandby.value
-                if (standby != null && standby.status == "payment_pending") {
-                    val patient = allPatients.value.find { it.id == standby.patient_id }
-                    if (patient != null) {
-                        val pcode = patient.clinic_patient_number?.toIntOrNull()
+                if (standby != null) {
+                    // 2. Poll EMR cost if status is payment_pending
+                    if (standby.status == Appointment.STATUS_PAYMENT_PENDING) {
+                        val patient = allPatients.value.find { it.id == standby.patient_id }
+                        val pcode = patient?.clinic_patient_number?.toIntOrNull()
                         if (pcode != null) {
                             try {
                                 val cost = emrRepository.getTodayConsultationCost(pcode)
-                                if (cost != null) {
-                                    if (cost != standby.payment_amount) {
-                                        Log.d(TAG, "[CostPolling] EMR cost updated: prev=${standby.payment_amount} -> new=$cost for pcode=$pcode, appointment=${standby.id}")
-                                        appointmentRepository.updateAppointmentPaymentAmount(standby.id!!, cost)
-                                        loadActivePatientAndAppointments()
-                                        pollingDelay = 5000L // Reset delay on update
-                                    } else {
-                                        Log.d(TAG, "[CostPolling] EMR cost unchanged: $cost for pcode=$pcode, no Supabase update needed")
-                                        pollingDelay = (pollingDelay + 2000L).coerceAtMost(30000L) // Progressive backoff max 30s
-                                    }
-                                } else {
-                                    Log.d(TAG, "[CostPolling] EMR cost not yet available for pcode=$pcode")
-                                    pollingDelay = (pollingDelay + 2000L).coerceAtMost(30000L)
+                                if (cost != null && cost != standby.payment_amount) {
+                                    Log.d(TAG, "[Polling] EMR cost updated: prev=${standby.payment_amount} -> new=$cost for pcode=$pcode")
+                                    appointmentRepository.updateAppointmentPaymentAmount(standby.id!!, cost)
+                                    loadActivePatientAndAppointments(isBackgroundPoll = true).join()
                                 }
                             } catch (e: Exception) {
-                                Log.e(TAG, "[CostPolling] EMR getTodayConsultationCost FAILED for pcode=$pcode", e)
-                                e.printStackTrace()
-                                pollingDelay = (pollingDelay * 2).coerceAtMost(60000L)
+                                Log.e(TAG, "[Polling] EMR cost fetch failed for pcode=$pcode", e)
                             }
                         }
                     }
+
+                    // 3. Fetch active queue position if status is waiting
+                    if (standby.status == Appointment.STATUS_WAITING) {
+                        try {
+                            val pos = appointmentRepository.getQueuePosition(standby.id!!)
+                            _queuePosition.value = pos
+                        } catch (e: Exception) {
+                            Log.e(TAG, "[Polling] getQueuePosition failed for id=${standby.id}", e)
+                        }
+                    } else {
+                        _queuePosition.value = null
+                    }
                 } else {
-                    // Reset delay when not in payment_pending state
-                    pollingDelay = 5000L
+                    _queuePosition.value = null
                 }
-                delay(pollingDelay)
+
+                delay(5000L) // Poll every 5 seconds
             }
         }
     }
 
-
-    fun loadActivePatientAndAppointments() {
-        viewModelScope.launch {
-            _isLoading.value = true
+    fun loadActivePatientAndAppointments(
+        isBackgroundPoll: Boolean = false,
+        onComplete: ((Boolean) -> Unit)? = null
+    ): kotlinx.coroutines.Job {
+        return viewModelScope.launch {
+            if (!isBackgroundPoll) {
+                _isLoading.value = true
+            }
+            var success = false
             try {
                 val userProfile = userRepository.getCurrentUserProfile()
 
@@ -152,18 +168,29 @@ class HomeViewModel @Inject constructor(
                 } else {
                     _appointments.value = emptyList()
                 }
+                success = true
             } catch (e: Exception) {
                 Log.e(TAG, "[HomeViewModel] loadActivePatientAndAppointments FAILED", e)
                 e.printStackTrace()
             } finally {
-                _isLoading.value = false
+                if (!isBackgroundPoll) {
+                    _isLoading.value = false
+                }
+                onComplete?.invoke(success)
             }
         }
     }
 
-    fun processPayment(appointmentId: String, transactionId: String? = null, amount: Int? = null, payMethod: String? = null) {
-        viewModelScope.launch {
+    fun processPayment(
+        appointmentId: String,
+        transactionId: String? = null,
+        amount: Int? = null,
+        payMethod: String? = null,
+        onComplete: ((Boolean) -> Unit)? = null
+    ): kotlinx.coroutines.Job {
+        return viewModelScope.launch {
             _isLoading.value = true
+            var success = false
             try {
                 Log.d(TAG, "[HomeViewModel] processPayment: appointmentId=$appointmentId -> status=${Appointment.STATUS_WAITING}")
                 
@@ -172,8 +199,27 @@ class HomeViewModel @Inject constructor(
                 val targetPatientId = appointmentToPay?.patient_id ?: patient.value?.id
                 val targetAmount = amount ?: appointmentToPay?.payment_amount
                 
-                // Update appointment status
-                appointmentRepository.updateAppointmentStatus(appointmentId, Appointment.STATUS_WAITING)
+                // Update appointment status first (meet link will be generated via Edge Function next)
+                appointmentRepository.updateAppointmentDetails(
+                    id = appointmentId,
+                    status = Appointment.STATUS_WAITING,
+                    meetLink = null,
+                    paymentAmount = targetAmount
+                )
+
+                // Launch Edge Function call to generate a real Google Meet space
+                try {
+                    appointmentRepository.generateMeetLink(appointmentId)
+                } catch (e: Exception) {
+                    Log.e(TAG, "[HomeViewModel] Failed to generate real Google Meet space, fallback to mock generation", e)
+                    val generatedMeetLink = "https://meet.google.com/mart-clinic-${appointmentId.take(8)}"
+                    appointmentRepository.updateAppointmentDetails(
+                        id = appointmentId,
+                        status = Appointment.STATUS_WAITING,
+                        meetLink = generatedMeetLink,
+                        paymentAmount = targetAmount
+                    )
+                }
                 
                 // Log detailed transaction if data is present
                 if (targetPatientId != null) {
@@ -194,12 +240,14 @@ class HomeViewModel @Inject constructor(
                 }
                 
                 Log.d(TAG, "[HomeViewModel] processPayment success")
-                loadActivePatientAndAppointments()
+                loadActivePatientAndAppointments().join()
+                success = true
             } catch (e: Exception) {
                 Log.e(TAG, "[HomeViewModel] processPayment FAILED for appointmentId=$appointmentId", e)
                 e.printStackTrace()
             } finally {
                 _isLoading.value = false
+                onComplete?.invoke(success)
             }
         }
     }

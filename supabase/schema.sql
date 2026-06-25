@@ -290,3 +290,32 @@ create policy "Patients and admins can manage payments" on payments
     or
     exists (select 1 from profiles where id = auth.uid() and role = 'admin')
   );
+
+-- 8. Functions
+create or replace function get_active_queue_position(target_id uuid)
+returns integer as $$
+declare
+  pos integer;
+  target_pay_time timestamp with time zone;
+begin
+  -- Get payment success time for target appointment
+  select created_at into target_pay_time 
+  from payments 
+  where appointment_id = target_id and status = 'SUCCESS'
+  order by created_at asc limit 1;
+  
+  if target_pay_time is null then
+    return null;
+  end if;
+
+  -- Count how many other appointments have a successful payment prior to ours
+  select count(*) + 1 into pos
+  from appointments a
+  join payments p on a.id = p.appointment_id
+  where a.status in ('waiting', 'calling', 'in_progress')
+    and p.status = 'SUCCESS'
+    and p.created_at < target_pay_time;
+
+  return pos;
+end;
+$$ language plpgsql security definer;

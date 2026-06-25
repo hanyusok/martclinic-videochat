@@ -10,4 +10,6 @@ interface AppointmentRepository {
     suspend fun updateAppointmentStatus(id: String, status: String)
     suspend fun updateAppointmentDetails(id: String, status: String, meetLink: String?, paymentAmount: Int?)
     suspend fun updateAppointmentPaymentAmount(id: String, paymentAmount: Int?)
+    suspend fun getQueuePosition(appointmentId: String): Int?
+    suspend fun generateMeetLink(appointmentId: String): String
 }
