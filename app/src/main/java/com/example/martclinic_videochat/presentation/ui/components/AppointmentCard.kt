@@ -9,11 +9,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.martclinic_videochat.domain.model.Appointment
+import com.example.martclinic_videochat.domain.model.Payment
 import com.example.martclinic_videochat.util.DateTimeUtil
 
 @Composable
 fun AppointmentCard(
     appointment: Appointment,
+    payment: Payment? = null,
     patientName: String? = null,
     onEnterConsultation: (() -> Unit)? = null,
     onViewPrescription: (() -> Unit)? = null
@@ -78,6 +80,18 @@ fun AppointmentCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            if (payment != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("결제 내역", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                val tidText = payment.transaction_id.let { if (it == "OFFLINE_PAYMENT") "현장 결제" else it }
+                Text("승인 번호: ${tidText ?: "없음"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (payment.pay_method != null) {
+                    Text("결제 수단: ${payment.pay_method}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 

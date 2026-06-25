@@ -20,16 +20,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import java.net.URISyntaxException
 
+import com.example.martclinic_videochat.util.KiwoomPayUtil
+
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentScreen(
-    url: String,
+    appointmentId: String,
+    amount: Int,
     onPaymentSuccess: (String) -> Unit,
     onPaymentFailure: (String) -> Unit,
     onClose: () -> Unit
 ) {
-    // 뒤로가기 제어: 웹뷰 뒤로가기가 가능하면 뒤로가고, 아니면 화면 닫기
-    var webView: WebView? = null
+    var webView: WebView? by remember { mutableStateOf(null) }
+    var paymentHtml by remember { mutableStateOf<String?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     
     BackHandler {
         if (webView?.canGoBack() == true) {
@@ -39,10 +52,22 @@ fun PaymentScreen(
         }
     }
 
+    LaunchedEffect(appointmentId) {
+        val safeApptId = appointmentId.replace("-", "").take(15)
+        val orderNo = "ORD_${safeApptId}_${System.currentTimeMillis().toString().takeLast(6)}"
+        
+        val hash = KiwoomPayUtil.fetchKiwoomEnc(orderNo, amount)
+        if (hash != null) {
+            paymentHtml = KiwoomPayUtil.buildPaymentHtml(amount, orderNo, hash)
+        } else {
+            errorMessage = "결제 준비 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        }
+    }
+
     androidx.compose.material3.Scaffold(
         topBar = {
             androidx.compose.material3.TopAppBar(
-                title = { androidx.compose.material3.Text("키움페이 결제") },
+                title = { androidx.compose.material3.Text("진료비 결제") },
                 navigationIcon = {
                     androidx.compose.material3.IconButton(onClick = onClose) {
                         androidx.compose.material3.Icon(
@@ -53,50 +78,61 @@ fun PaymentScreen(
                 },
                 actions = {
                     // For testing purpose: trigger success
-                    androidx.compose.material3.TextButton(onClick = { onPaymentSuccess(url) }) {
+                    androidx.compose.material3.TextButton(onClick = { onPaymentSuccess("success") }) {
                         androidx.compose.material3.Text("테스트: 결제 완료")
                     }
                 }
             )
         }
     ) { paddingValues ->
-        AndroidView(
+        Box(
             modifier = Modifier.fillMaxSize().padding(paddingValues),
-            factory = { context ->
-                WebView(context).apply {
-                    webView = this
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    
-                    settings.apply {
-                        javaScriptEnabled = true
-                        javaScriptCanOpenWindowsAutomatically = true
-                        domStorageEnabled = true
-                        loadWithOverviewMode = true
-                        useWideViewPort = true
-                        cacheMode = WebSettings.LOAD_NO_CACHE
-                    }
+            contentAlignment = Alignment.Center
+        ) {
+            if (errorMessage != null) {
+                androidx.compose.material3.Text(errorMessage!!)
+            } else if (paymentHtml == null) {
+                CircularProgressIndicator()
+            } else {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { context ->
+                        WebView(context).apply {
+                            webView = this
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            
+                            settings.apply {
+                                javaScriptEnabled = true
+                                javaScriptCanOpenWindowsAutomatically = true
+                                domStorageEnabled = true
+                                loadWithOverviewMode = true
+                                useWideViewPort = true
+                                cacheMode = WebSettings.LOAD_NO_CACHE
+                            }
 
-                    // Lollipop 이상 쿠키 및 혼합 콘텐츠 설정
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        CookieManager.getInstance().setAcceptCookie(true)
-                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    }
+                            // Lollipop 이상 쿠키 및 혼합 콘텐츠 설정
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                CookieManager.getInstance().setAcceptCookie(true)
+                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                            }
 
-                    webViewClient = createPaymentWebViewClient(
-                        context = context,
-                        onSuccess = onPaymentSuccess,
-                        onFailure = onPaymentFailure
-                    )
-                    webChromeClient = WebChromeClient()
-                    
-                    loadUrl(url)
-                }
+                            webViewClient = createPaymentWebViewClient(
+                                context = context,
+                                onSuccess = onPaymentSuccess,
+                                onFailure = onPaymentFailure
+                            )
+                            webChromeClient = WebChromeClient()
+                            
+                            loadDataWithBaseURL("https://api.kiwoompay.co.kr", paymentHtml!!, "text/html", "UTF-8", null)
+                        }
+                    }
+                )
             }
-        )
+        }
     }
 }
 

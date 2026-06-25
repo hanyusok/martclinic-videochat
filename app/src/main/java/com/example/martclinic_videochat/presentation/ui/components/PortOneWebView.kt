@@ -37,8 +37,56 @@ fun PortOneWebView(
                 settings.javaScriptCanOpenWindowsAutomatically = true
                 
                 webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                        super.onPageStarted(view, url, favicon)
+                        url?.let {
+                            if (it.startsWith("https://martclinic.com/verify-success")) {
+                                val uri = Uri.parse(it)
+                                val identityVerificationId = uri.getQueryParameter("identityVerificationId")
+                                val code = uri.getQueryParameter("code")
+                                val message = uri.getQueryParameter("message")
+                                
+                                if (code != null) {
+                                    onFailed(message ?: "인증 실패")
+                                } else if (identityVerificationId != null) {
+                                    onVerified(identityVerificationId)
+                                } else {
+                                    val paymentId = uri.getQueryParameter("paymentId")
+                                    if (paymentId != null) {
+                                        onVerified(paymentId)
+                                    } else {
+                                        onFailed("인증 ID를 찾을 수 없습니다.")
+                                    }
+                                }
+                                view?.stopLoading()
+                            }
+                        }
+                    }
+
                     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                         val url = request.url.toString()
+                        
+                        if (url.startsWith("https://martclinic.com/verify-success")) {
+                            val uri = Uri.parse(url)
+                            val identityVerificationId = uri.getQueryParameter("identityVerificationId")
+                            val code = uri.getQueryParameter("code")
+                            val message = uri.getQueryParameter("message")
+                            
+                            if (code != null) {
+                                onFailed(message ?: "인증 실패")
+                            } else if (identityVerificationId != null) {
+                                onVerified(identityVerificationId)
+                            } else {
+                                val paymentId = uri.getQueryParameter("paymentId")
+                                if (paymentId != null) {
+                                    onVerified(paymentId)
+                                } else {
+                                    onFailed("인증 ID를 찾을 수 없습니다.")
+                                }
+                            }
+                            return true
+                        }
+
                         if (!url.startsWith("http://") && !url.startsWith("https://")) {
                             try {
                                 val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
@@ -185,14 +233,11 @@ fun PortOneWebView(
                                     storeId: "$storeId",
                                     identityVerificationId: verificationId,
                                     channelKey: "$channelKey",
-                                    windowType: {
-                                        pc: "POPUP",
-                                        mobile: "POPUP"
-                                    }
+                                    redirectUrl: "https://martclinic.com/verify-success"
                                 }).then(function(response) {
-                                    if (response.code != null) {
+                                    if (response && response.code != null) {
                                         Android.onError(response.message || '인증 실패');
-                                    } else {
+                                    } else if (response && response.identityVerificationId) {
                                         Android.onSuccess(response.identityVerificationId);
                                     }
                                 }).catch(function(error) {

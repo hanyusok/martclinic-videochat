@@ -9,6 +9,8 @@ import com.example.martclinic_videochat.domain.model.UserRole
 import com.example.martclinic_videochat.domain.repository.PatientRepository
 import com.example.martclinic_videochat.domain.repository.UserRepository
 import com.example.martclinic_videochat.domain.repository.AppointmentRepository
+import com.example.martclinic_videochat.domain.repository.PaymentRepository
+import com.example.martclinic_videochat.domain.model.Payment
 import com.example.martclinic_videochat.domain.repository.EmrRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.jan.supabase.auth.Auth
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -30,6 +33,7 @@ class HomeViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val appointmentRepository: AppointmentRepository,
     private val emrRepository: EmrRepository,
+    private val paymentRepository: PaymentRepository,
     private val auth: Auth
 ) : ViewModel() {
 
@@ -93,10 +97,6 @@ class HomeViewModel @Inject constructor(
             var pollingDelay = 5000L
             while(true) {
                 val standby = activeStandby.value
-                // Poll EMR for selfee as long as status is payment_pending.
-                // This covers both: (1) initial cost fetch when payment_amount is null,
-                // and (2) tracking fee changes the doctor may make in the EMR after the
-                // first value was already saved to Supabase.
                 if (standby != null && standby.status == "payment_pending") {
                     val patient = allPatients.value.find { it.id == standby.patient_id }
                     if (patient != null) {
@@ -104,10 +104,9 @@ class HomeViewModel @Inject constructor(
                         if (pcode != null) {
                             try {
                                 val cost = emrRepository.getTodayConsultationCost(pcode)
-                                pollingDelay = 5000L // Reset delay on success
+                                pollingDelay = 5000L
                                 if (cost != null) {
                                     if (cost != standby.payment_amount) {
-                                        // Cost is new or has changed — update Supabase and refresh UI
                                         Log.d(TAG, "[CostPolling] EMR cost updated: prev=${standby.payment_amount} -> new=$cost for pcode=$pcode, appointment=${standby.id}")
                                         appointmentRepository.updateAppointmentPaymentAmount(standby.id!!, cost)
                                         loadActivePatientAndAppointments()
@@ -118,9 +117,8 @@ class HomeViewModel @Inject constructor(
                                     Log.d(TAG, "[CostPolling] EMR cost not yet available for pcode=$pcode")
                                 }
                             } catch (e: Exception) {
-                                Log.e(TAG, "[CostPolling] EMR getTodayConsultationCost FAILED for pcode=$pcode (EMR server non-responding)", e)
+                                Log.e(TAG, "[CostPolling] EMR getTodayConsultationCost FAILED for pcode=$pcode", e)
                                 e.printStackTrace()
-                                // Double the delay on exception (exponential backoff) up to a max of 60 seconds
                                 pollingDelay = (pollingDelay * 2).coerceAtMost(60000L)
                             }
                         }
@@ -136,7 +134,6 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Ensure profile is loaded for reactive streams
                 val userProfile = userRepository.getCurrentUserProfile()
 
                 val allPatientsList = patientRepository.getPatients()
@@ -159,12 +156,36 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun processPayment(appointmentId: String) {
+    fun processPayment(appointmentId: String, transactionId: String? = null, amount: Int? = null, payMethod: String? = null) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
                 Log.d(TAG, "[HomeViewModel] processPayment: appointmentId=$appointmentId -> status=${Appointment.STATUS_WAITING}")
+                
+                // Update appointment status
                 appointmentRepository.updateAppointmentStatus(appointmentId, Appointment.STATUS_WAITING)
+                
+                // Log detailed transaction if data is present
+                val currentPatientId = activeStandby.value?.patient_id ?: patient.value?.id
+                if (currentPatientId != null) {
+                    val existingPayments = paymentRepository.getPaymentsForAppointment(appointmentId)
+                    val hasSuccessPayment = existingPayments.any { it.status == "SUCCESS" }
+                    if (!hasSuccessPayment) {
+                        val paymentRecord = Payment(
+                            appointment_id = appointmentId,
+                            patient_id = currentPatientId,
+                            transaction_id = transactionId,
+                            amount = amount ?: activeStandby.value?.payment_amount,
+                            pay_method = payMethod,
+                            status = "SUCCESS"
+                        )
+                        paymentRepository.createPayment(paymentRecord)
+                        Log.d(TAG, "[HomeViewModel] Detailed transaction logged to payments table: TID=$transactionId")
+                    } else {
+                        Log.d(TAG, "[HomeViewModel] Payment already exists for appointmentId=$appointmentId. Skipping duplicate insert.")
+                    }
+                }
+                
                 Log.d(TAG, "[HomeViewModel] processPayment success")
                 loadActivePatientAndAppointments()
             } catch (e: Exception) {

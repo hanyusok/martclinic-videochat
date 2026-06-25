@@ -28,6 +28,7 @@ fun HistoryScreen(
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
     val appointments by viewModel.appointments.collectAsState()
+    val payments by viewModel.payments.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val patient by viewModel.patient.collectAsState()
     val context = LocalContext.current
@@ -79,8 +80,10 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(appointments) { appointment ->
+                        val payment = appointment.id?.let { payments[it] }
                         AppointmentCard(
                             appointment = appointment,
+                            payment = payment,
                             onEnterConsultation = {
                                 if (!appointment.meet_link.isNullOrBlank()) {
                                     MeetUtil.openGoogleMeet(context, appointment.meet_link)

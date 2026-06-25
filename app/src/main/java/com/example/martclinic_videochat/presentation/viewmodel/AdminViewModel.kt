@@ -12,6 +12,8 @@ import com.example.martclinic_videochat.domain.repository.AppointmentRepository
 import com.example.martclinic_videochat.domain.repository.PatientRepository
 import com.example.martclinic_videochat.domain.repository.PharmacyRepository
 import com.example.martclinic_videochat.domain.repository.UserRepository
+import com.example.martclinic_videochat.domain.repository.PaymentRepository
+import com.example.martclinic_videochat.domain.model.Payment
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.jan.supabase.auth.Auth
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +32,7 @@ class AdminViewModel @Inject constructor(
     private val pharmacyRepository: PharmacyRepository,
     private val userRepository: UserRepository,
     private val emrRepository: com.example.martclinic_videochat.domain.repository.EmrRepository,
+    private val paymentRepository: PaymentRepository,
     private val auth: Auth
 ) : ViewModel() {
 
@@ -109,6 +112,29 @@ class AdminViewModel @Inject constructor(
             try {
                 Log.d(TAG, "[Admin] updateAppointmentDetails: id=$appointmentId, status=$status, meetLink=$meetLink, paymentAmount=$paymentAmount")
                 appointmentRepository.updateAppointmentDetails(appointmentId, status, meetLink, paymentAmount)
+                
+                // If status changed to completed or waiting, ensure a payment record exists (for offline payments)
+                if (status == Appointment.STATUS_WAITING || status == Appointment.STATUS_COMPLETED) {
+                    val existingPayments = paymentRepository.getPaymentsForAppointment(appointmentId)
+                    val hasSuccessPayment = existingPayments.any { it.status == "SUCCESS" }
+                    if (!hasSuccessPayment) {
+                        // Create offline payment record
+                        val appointment = _allAppointments.value.find { it.id == appointmentId }
+                        if (appointment != null) {
+                            val paymentRecord = Payment(
+                                appointment_id = appointmentId,
+                                patient_id = appointment.patient_id,
+                                transaction_id = "OFFLINE_PAYMENT",
+                                amount = paymentAmount ?: appointment.payment_amount,
+                                pay_method = "OFFLINE",
+                                status = "SUCCESS"
+                            )
+                            paymentRepository.createPayment(paymentRecord)
+                            Log.d(TAG, "[Admin] Created OFFLINE payment record for appointmentId=$appointmentId")
+                        }
+                    }
+                }
+
                 Log.d(TAG, "[Admin] updateAppointmentDetails success")
                 loadDashboardData()
             } catch (e: Exception) {
@@ -117,6 +143,39 @@ class AdminViewModel @Inject constructor(
             } finally {
                 _isLoading.value = false
             }
+        }
+    }
+
+    fun cancelPayment(appointmentId: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                Log.d(TAG, "[Admin] cancelPayment: appointmentId=$appointmentId")
+                
+                // Update appointment status back to pending
+                appointmentRepository.updateAppointmentStatus(appointmentId, Appointment.STATUS_PAYMENT_PENDING)
+                
+                // Update payment records to CANCELED
+                paymentRepository.updatePaymentStatus(appointmentId, "CANCELED")
+                
+                Log.d(TAG, "[Admin] cancelPayment success")
+                loadDashboardData()
+            } catch (e: Exception) {
+                Log.e(TAG, "[Admin] cancelPayment FAILED for id=$appointmentId", e)
+                e.printStackTrace()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    suspend fun getPaymentForAppointment(appointmentId: String): Payment? {
+        return try {
+            val payments = paymentRepository.getPaymentsForAppointment(appointmentId)
+            payments.find { it.status == "SUCCESS" } ?: payments.firstOrNull()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 

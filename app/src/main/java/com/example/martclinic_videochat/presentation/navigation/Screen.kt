@@ -36,7 +36,6 @@ sealed interface Screen {
     @Serializable
     data class Payment(
         val appointmentId: String,
-        val amount: Int,
-        val paymentUrl: String = "https://developer.kiwoompay.co.kr/developer/webView_test"
+        val amount: Int
     ) : Screen
 }

@@ -23,6 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.model.Patient
+import com.example.martclinic_videochat.domain.model.Payment
 import com.example.martclinic_videochat.presentation.viewmodel.AdminViewModel
 import com.example.martclinic_videochat.util.MeetUtil
 import java.text.NumberFormat
@@ -39,8 +40,17 @@ fun AdminQueueScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
     var selectedAppointment by remember { mutableStateOf<Appointment?>(null) }
+    var currentPayment by remember { mutableStateOf<Payment?>(null) }
     val currentSelectedAppointment = selectedAppointment?.let { appt ->
         appointments.find { it.id == appt.id } ?: appt
+    }
+
+    LaunchedEffect(currentSelectedAppointment?.id) {
+        if (currentSelectedAppointment?.id != null) {
+            currentPayment = viewModel.getPaymentForAppointment(currentSelectedAppointment.id!!)
+        } else {
+            currentPayment = null
+        }
     }
 
     BoxWithConstraints(
@@ -101,6 +111,7 @@ fun AdminQueueScreen(
                                 AppointmentDetailPane(
                                     appointment = appt,
                                     patients = patients,
+                                    payment = currentPayment,
                                     onUpdateAppointmentDetails = { id, status, meetLink, paymentAmount ->
                                         viewModel.updateAppointmentDetails(
                                             id,
@@ -112,6 +123,10 @@ fun AdminQueueScreen(
                                     },
                                     onFetchCost = { pat, callback ->
                                         viewModel.fetchCostForPatient(pat, callback)
+                                    },
+                                    onCancelPayment = { id ->
+                                        viewModel.cancelPayment(id)
+                                        selectedAppointment = null
                                     },
                                     onDismiss = { selectedAppointment = null }
                                 )
@@ -166,12 +181,18 @@ fun AdminQueueScreen(
                                     AppointmentDetailPane(
                                         appointment = appt,
                                         patients = patients,
+                                        payment = currentPayment,
                                         onUpdateAppointmentDetails = { id, status, meet, amount ->
                                             viewModel.updateAppointmentDetails(id, status, meet, amount)
                                             selectedAppointment = null
                                         },
                                         onFetchCost = { pat, callback ->
                                             viewModel.fetchCostForPatient(pat, callback)
+                                        },
+                                        onCancelPayment = { id ->
+                                            viewModel.cancelPayment(id)
+                                            showDetailBottomSheet = false
+                                            selectedAppointment = null
                                         },
                                         onDismiss = {
                                             showDetailBottomSheet = false
@@ -319,8 +340,10 @@ fun EmptyDetailPlaceholder(message: String) {
 fun AppointmentDetailPane(
     appointment: Appointment,
     patients: List<Patient>,
+    payment: Payment?,
     onUpdateAppointmentDetails: (String, String, String?, Int?) -> Unit,
     onFetchCost: (Patient, (Int?) -> Unit) -> Unit,
+    onCancelPayment: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val patient = patients.find { it.id == appointment.patient_id }
@@ -471,6 +494,24 @@ fun AppointmentDetailPane(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("진료 결제 금액 (원)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    val isPaymentPending = appointment.status == "payment_pending"
+                    val paymentStatusText = if (isPaymentPending) "미결제 (결제 대기)" else "결제 완료"
+                    val paymentStatusColor = if (isPaymentPending) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    Surface(
+                        color = paymentStatusColor.copy(alpha = 0.1f),
+                        contentColor = paymentStatusColor,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = paymentStatusText,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    
                     Spacer(modifier = Modifier.weight(1f))
                     if (patient != null) {
                         TextButton(
@@ -501,6 +542,31 @@ fun AppointmentDetailPane(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                
+                if (payment != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("결제 상세 내역", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("승인 번호: ${payment.transaction_id ?: "없음"}", style = MaterialTheme.typography.bodySmall)
+                            Text("결제 수단: ${payment.pay_method ?: "없음"}", style = MaterialTheme.typography.bodySmall)
+                            Text("결제 상태: ${payment.status}", style = MaterialTheme.typography.bodySmall)
+                            
+                            if (payment.status == "SUCCESS" && appointment.id != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { onCancelPayment(appointment.id) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("결제 취소 (롤백)")
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

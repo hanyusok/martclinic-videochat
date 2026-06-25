@@ -155,10 +155,22 @@ fun MainScreen() {
                 val payment = backStackEntry.toRoute<Screen.Payment>()
                 val homeViewModel: com.example.martclinic_videochat.presentation.viewmodel.HomeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
                 PaymentScreen(
-                    url = payment.paymentUrl,
-                    onPaymentSuccess = {
-                        // 결제 성공 시 Supabase 상태 업데이트 후 뒤로가기
-                        homeViewModel.processPayment(payment.appointmentId)
+                    appointmentId = payment.appointmentId,
+                    amount = payment.amount,
+                    onPaymentSuccess = { url ->
+                        val uri = android.net.Uri.parse(url)
+                        val tid = uri.getQueryParameter("DAOUTRX")
+                        val amtStr = uri.getQueryParameter("AMOUNT")
+                        val amount = amtStr?.toIntOrNull()
+                        val payMethod = uri.getQueryParameter("PAYMETHOD")
+
+                        // 결제 성공 시 Supabase 상태 업데이트 및 로그 기록 후 뒤로가기
+                        homeViewModel.processPayment(
+                            appointmentId = payment.appointmentId,
+                            transactionId = tid,
+                            amount = amount,
+                            payMethod = payMethod
+                        )
                         navController.popBackStack()
                     },
                     onPaymentFailure = {

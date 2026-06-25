@@ -6,6 +6,8 @@ import com.example.martclinic_videochat.domain.model.Appointment
 import com.example.martclinic_videochat.domain.model.Patient
 import com.example.martclinic_videochat.domain.repository.AppointmentRepository
 import com.example.martclinic_videochat.domain.repository.PatientRepository
+import com.example.martclinic_videochat.domain.repository.PaymentRepository
+import com.example.martclinic_videochat.domain.model.Payment
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +18,8 @@ import javax.inject.Inject
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val patientRepository: PatientRepository,
-    private val appointmentRepository: AppointmentRepository
+    private val appointmentRepository: AppointmentRepository,
+    private val paymentRepository: PaymentRepository
 ) : ViewModel() {
 
     private val _patient = MutableStateFlow<Patient?>(null)
@@ -24,6 +27,9 @@ class HistoryViewModel @Inject constructor(
 
     private val _appointments = MutableStateFlow<List<Appointment>>(emptyList())
     val appointments: StateFlow<List<Appointment>> = _appointments.asStateFlow()
+
+    private val _payments = MutableStateFlow<Map<String, Payment>>(emptyMap())
+    val payments: StateFlow<Map<String, Payment>> = _payments.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -39,7 +45,20 @@ class HistoryViewModel @Inject constructor(
                 val activePatient = patientRepository.getFirstPatient()
                 _patient.value = activePatient
                 if (activePatient?.id != null) {
-                    _appointments.value = appointmentRepository.getAppointments(activePatient.id)
+                    val appts = appointmentRepository.getAppointments(activePatient.id)
+                    _appointments.value = appts
+                    
+                    val pMap = mutableMapOf<String, Payment>()
+                    for (appt in appts) {
+                        if (appt.id != null) {
+                            val existingPayments = paymentRepository.getPaymentsForAppointment(appt.id)
+                            val successPayment = existingPayments.find { it.status == "SUCCESS" } ?: existingPayments.firstOrNull()
+                            if (successPayment != null) {
+                                pMap[appt.id] = successPayment
+                            }
+                        }
+                    }
+                    _payments.value = pMap
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

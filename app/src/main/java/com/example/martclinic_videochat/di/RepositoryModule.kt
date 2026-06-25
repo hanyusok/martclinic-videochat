@@ -58,4 +58,10 @@ abstract class RepositoryModule {
     abstract fun bindUserRepository(
         userRepositoryImpl: UserRepositoryImpl
     ): UserRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPaymentRepository(
+        paymentRepositoryImpl: com.example.martclinic_videochat.data.repository.PaymentRepositoryImpl
+    ): com.example.martclinic_videochat.domain.repository.PaymentRepository
 }
