@@ -1,13 +1,18 @@
 # Mart Clinic Video Chat (마트클리닉 비대면 진료)
 
-Mart Clinic Video Chat is a professional telemedicine Android application designed for remote medical consultations, appointment scheduling, and digital prescription management.
+Mart Clinic Video Chat is a professional telemedicine Android application designed for remote medical consultations, payment processing, appointment scheduling, and digital prescription management.
 
 ## 🚀 Key Features
 
 ### 👨‍⚕️ Telemedicine & Appointments
-- **Real-time Video Consultation**: Integrated Google Meet support for high-quality video chats with doctors.
-- **Smart Booking**: Interactive scheduling system with real-time availability sync.
-- **Identity Verification**: Secure integration with EMR systems for patient data verification.
+- **Admin-Driven Consultation Flow**: Secure "Waiting Room" system where clinic admins oversee the queue and generate Google Meet spaces for patients when doctors are ready.
+- **Google Meet Integration**: Automated video room generation using Supabase Edge Functions and Google API service accounts.
+- **Legacy EMR Syncing**: Seamless bidirectional integration with the clinic's legacy EMR systems via Ktor. Patient check-ins, symptom formatting, and cost retrieval are automatically synchronized.
+- **Smart Booking & Triage**: Interactive scheduling system that collects symptoms and identity information before pushing to the EMR.
+
+### 💳 Integrated Payments (KiwoomPay)
+- **WebView Payment Flow**: End-to-end integration with KiwoomPay, supporting robust WebView POST redirect interceptions for capturing payment success/failure.
+- **Status Synchronization**: Realtime payment status updates powered by Supabase, smoothly advancing the patient from checkout to the virtual waiting room.
 
 ### 💊 Digital Pharmacy Management
 - **GPS-Based Pharmacy Search**: Find pharmacies within a 10km radius using real-time device location and PostGIS spatial indexing.
@@ -20,19 +25,21 @@ Mart Clinic Video Chat is a professional telemedicine Android application design
 
 ## 🛠 Tech Stack
 - **Language**: Kotlin (JVM 21)
-- **UI Framework**: Jetpack Compose
+- **UI Framework**: Jetpack Compose (Material 3)
 - **Architecture**: MVVM + Clean Architecture
 - **Dependency Injection**: Hilt
-- **Backend**: Supabase (PostgreSQL, Auth, Storage, Realtime)
+- **Backend**: Supabase (PostgreSQL, Auth, Storage, Edge Functions, Realtime)
 - **Networking**: Ktor Client
 - **Location**: Google Play Services (Fused Location)
 - **Image Loading**: Coil
+- **Payments**: KiwoomPay (S2S API & WebView)
 
 ## 📂 Project Structure
-- `data/`: Repository implementations, API models, and Location helpers.
+- `data/`: Repository implementations, EMR gateways, API models, and Location helpers.
 - `domain/`: Business entities and repository interfaces.
-- `presentation/`: Compose UI, ViewModels, and Navigation.
+- `presentation/`: Compose UI, ViewModels, and Navigation (Includes dedicated `admin/` screens).
 - `di/`: Hilt modules for Network, Supabase, and Repositories.
+- `supabase/functions/`: Deno Edge Functions for server-side logic (e.g., `generate-meet-link`).
 
 ## 🏁 Getting Started
 
@@ -46,7 +53,15 @@ val SUPABASE_URL = "YOUR_SUPABASE_URL"
 val SUPABASE_ANON_KEY = "YOUR_ANON_KEY"
 ```
 
-### 3. Permissions
+### 3. Edge Functions
+Deploy the Edge Functions to generate Google Meet links:
+```bash
+cd supabase
+supabase functions deploy generate-meet-link
+```
+Make sure to set your Google Service Account credentials in the Supabase Secrets.
+
+### 4. Permissions
 The app requires the following permissions for full functionality:
 - `Internet`: Backend connectivity.
 - `Location (Fine/Coarse)`: For finding nearby pharmacies.
