@@ -207,19 +207,6 @@ class HomeViewModel @Inject constructor(
                     paymentAmount = targetAmount
                 )
 
-                // Launch Edge Function call to generate a real Google Meet space
-                try {
-                    appointmentRepository.generateMeetLink(appointmentId)
-                } catch (e: Exception) {
-                    Log.e(TAG, "[HomeViewModel] Failed to generate real Google Meet space, fallback to mock generation", e)
-                    val generatedMeetLink = "https://meet.google.com/mart-clinic-${appointmentId.take(8)}"
-                    appointmentRepository.updateAppointmentDetails(
-                        id = appointmentId,
-                        status = Appointment.STATUS_WAITING,
-                        meetLink = generatedMeetLink,
-                        paymentAmount = targetAmount
-                    )
-                }
                 
                 // Log detailed transaction if data is present
                 if (targetPatientId != null) {

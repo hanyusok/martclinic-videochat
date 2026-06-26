@@ -139,11 +139,26 @@ class BookingViewModel @Inject constructor(
                             } else {
                                 android.util.Log.d("BookingViewModel", "EMR Check-in succeeded.")
                                 if (symptoms.isNotBlank()) {
+                                    val calendar = java.util.Calendar.getInstance()
+                                    val dayOfWeek = when (calendar.get(java.util.Calendar.DAY_OF_WEEK)) {
+                                        java.util.Calendar.SUNDAY -> "日"
+                                        java.util.Calendar.MONDAY -> "月"
+                                        java.util.Calendar.TUESDAY -> "火"
+                                        java.util.Calendar.WEDNESDAY -> "水"
+                                        java.util.Calendar.THURSDAY -> "木"
+                                        java.util.Calendar.FRIDAY -> "金"
+                                        java.util.Calendar.SATURDAY -> "土"
+                                        else -> ""
+                                    }
+                                    val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(calendar.time)
+                                    val formattedSymptom = "[$dateStr $dayOfWeek]\n$symptoms"
+                                    
                                     android.util.Log.d("BookingViewModel", "Sending symptoms to EMR chart for pcode: $pcode")
                                     val chartSuccess = emrRepository.createChart(
                                         com.example.martclinic_videochat.data.remote.dto.CloudChartCreate(
                                             pcode = pcode,
-                                            symptom = symptoms
+                                            symptom = formattedSymptom,
+                                            doc = "63221"
                                         )
                                     )
                                     if (!chartSuccess) {

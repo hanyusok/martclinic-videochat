@@ -136,6 +136,18 @@ private fun createPaymentWebViewClient(
     onFailure: (String) -> Unit
 ) = object : WebViewClient() {
 
+    override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+        super.onPageStarted(view, url, favicon)
+        if (url != null) {
+            if (url.contains("payment_success") || url.contains("v1/payments/confirm")) {
+                onSuccess(url)
+            } else if (url.contains("payment_fail") || url.contains("v1/payments/fail")) {
+                android.widget.Toast.makeText(context, "결제가 취소되거나 실패했습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                onFailure(url)
+            }
+        }
+    }
+
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
         return handleUri(view, request.url.toString())
     }
