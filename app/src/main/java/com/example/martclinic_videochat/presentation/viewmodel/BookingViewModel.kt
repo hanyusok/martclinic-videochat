@@ -138,6 +138,18 @@ class BookingViewModel @Inject constructor(
                                 android.util.Log.e("BookingViewModel", "EMR Check-in failed for pcode: $pcode (EMR server non-responding or registration failed).")
                             } else {
                                 android.util.Log.d("BookingViewModel", "EMR Check-in succeeded.")
+                                if (symptoms.isNotBlank()) {
+                                    android.util.Log.d("BookingViewModel", "Sending symptoms to EMR chart for pcode: $pcode")
+                                    val chartSuccess = emrRepository.createChart(
+                                        com.example.martclinic_videochat.data.remote.dto.CloudChartCreate(
+                                            pcode = pcode,
+                                            symptom = symptoms
+                                        )
+                                    )
+                                    if (!chartSuccess) {
+                                        android.util.Log.e("BookingViewModel", "Failed to send symptoms to EMR chart for pcode: $pcode")
+                                    }
+                                }
                             }
                         }
                     } catch (e: Exception) {

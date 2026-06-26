@@ -131,20 +131,23 @@ class AdminViewModel @Inject constructor(
         }
     }
 
-    suspend fun generateMeetLink(appointmentId: String) {
+    suspend fun generateMeetLink(appointmentId: String): String {
         Log.d(TAG, "[Admin] generateMeetLink: appointmentId=$appointmentId")
-        try {
-            appointmentRepository.generateMeetLink(appointmentId)
+        return try {
+            val link = appointmentRepository.generateMeetLink(appointmentId)
+            loadDashboardData() // Reload to get updated status and link
+            link
         } catch (e: Exception) {
             Log.e(TAG, "[Admin] generateMeetLink failed, falling back to mock link", e)
             val generatedMeetLink = "https://meet.google.com/mart-clinic-${appointmentId.take(8)}"
             appointmentRepository.updateAppointmentDetails(
                 id = appointmentId,
-                status = Appointment.STATUS_WAITING,
+                status = Appointment.STATUS_CALLING,
                 meetLink = generatedMeetLink,
                 paymentAmount = null
             )
-            throw e
+            loadDashboardData()
+            generatedMeetLink
         }
     }
 

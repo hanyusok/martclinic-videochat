@@ -8,4 +8,5 @@ interface EmrRepository {
     suspend fun checkInPatient(cloudMtrCreate: com.example.martclinic_videochat.data.remote.dto.CloudMtrCreate): Boolean
     suspend fun getPatientVisits(pcode: Int): List<com.example.martclinic_videochat.domain.model.EmrVisit>
     suspend fun getTodayConsultationCost(pcode: Int): Int?
+    suspend fun createChart(chartCreate: com.example.martclinic_videochat.data.remote.dto.CloudChartCreate): Boolean
 }

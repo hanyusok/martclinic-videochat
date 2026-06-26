@@ -107,4 +107,24 @@ class EmrRepositoryImpl @Inject constructor(
 
         return todayVisit?.selfFee
     }
+
+    override suspend fun createChart(chartCreate: com.example.martclinic_videochat.data.remote.dto.CloudChartCreate): Boolean {
+        return try {
+            android.util.Log.d("EmrRepository", "Attempting chart create: $chartCreate")
+            val response = client.post("api/charts") {
+                contentType(ContentType.Application.Json)
+                setBody(chartCreate)
+            }
+            if (response.status.isSuccess()) {
+                android.util.Log.d("EmrRepository", "Chart create success: ${response.bodyAsText()}")
+                true
+            } else {
+                android.util.Log.e("EmrRepository", "Chart create failed: ${response.status}. Body: ${response.bodyAsText()}")
+                false
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("EmrRepository", "Chart create exception", e)
+            false
+        }
+    }
 }

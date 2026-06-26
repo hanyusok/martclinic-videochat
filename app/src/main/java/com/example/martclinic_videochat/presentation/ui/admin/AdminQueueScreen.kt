@@ -545,26 +545,15 @@ fun AppointmentDetailPane(
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("화상 진료 방 링크 (Google Meet)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = meetLink,
-                        onValueChange = { meetLink = it },
-                        placeholder = { Text("https://meet.google.com/...") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                     Button(
+                if (appointment.status == "waiting" && meetLink.isBlank()) {
+                    Button(
                         onClick = {
                             appointment.id?.let { apptId ->
                                 scope.launch {
                                     isGeneratingMeetLink = true
                                     try {
                                         onGenerateMeetLink(apptId)
-                                        Toast.makeText(context, "Google Meet 진료방이 생성되었습니다.", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "환자를 호출하고 진료방을 생성했습니다.", Toast.LENGTH_SHORT).show()
                                     } catch (e: Exception) {
                                         Toast.makeText(context, "생성 실패 (모의 링크 생성됨): ${e.message}", Toast.LENGTH_LONG).show()
                                     } finally {
@@ -573,26 +562,72 @@ fun AppointmentDetailPane(
                                 }
                             }
                         },
-                        enabled = !isGeneratingMeetLink && appointment.id != null,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                        enabled = !isGeneratingMeetLink,
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         if (isGeneratingMeetLink) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = MaterialTheme.colorScheme.onSecondary,
-                                strokeWidth = 2.dp
-                            )
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                         } else {
-                            Text("링크 생성")
+                            Icon(Icons.Default.VideoCall, contentDescription = null, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("진료 시작 (환자 호출 및 Meet 방 생성)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                         }
                     }
-                }
-                if (meetLink.isNotBlank()) {
-                    TextButton(
-                        onClick = { MeetUtil.openGoogleMeet(context, meetLink) },
-                        modifier = Modifier.align(Alignment.Start)
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("생성된 진료방 입장해보기")
+                        OutlinedTextField(
+                            value = meetLink,
+                            onValueChange = { meetLink = it },
+                            placeholder = { Text("https://meet.google.com/...") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = {
+                                appointment.id?.let { apptId ->
+                                    scope.launch {
+                                        isGeneratingMeetLink = true
+                                        try {
+                                            onGenerateMeetLink(apptId)
+                                            Toast.makeText(context, "Google Meet 진료방이 재생성되었습니다.", Toast.LENGTH_SHORT).show()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "생성 실패 (모의 링크 생성됨): ${e.message}", Toast.LENGTH_LONG).show()
+                                        } finally {
+                                            isGeneratingMeetLink = false
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isGeneratingMeetLink && appointment.id != null,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                        ) {
+                            if (isGeneratingMeetLink) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = MaterialTheme.colorScheme.onSecondary,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("링크 재발급")
+                            }
+                        }
+                    }
+                    if (meetLink.isNotBlank()) {
+                        Button(
+                            onClick = { MeetUtil.openGoogleMeet(context, meetLink) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                        ) {
+                            Icon(Icons.Default.VideoCall, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("생성된 진료방 입장하기")
+                        }
                     }
                 }
             }
