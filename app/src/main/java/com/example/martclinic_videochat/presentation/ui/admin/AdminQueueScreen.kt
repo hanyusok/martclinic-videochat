@@ -122,9 +122,6 @@ fun AdminQueueScreen(
                                         )
                                         selectedAppointment = null
                                     },
-                                    onFetchCost = { pat, callback ->
-                                        viewModel.fetchCostForPatient(pat, callback)
-                                    },
                                     onCancelPayment = { id ->
                                         viewModel.cancelPayment(id)
                                         selectedAppointment = null
@@ -189,9 +186,6 @@ fun AdminQueueScreen(
                                         onUpdateAppointmentDetails = { id, status, meet, amount ->
                                             viewModel.updateAppointmentDetails(id, status, meet, amount)
                                             selectedAppointment = null
-                                        },
-                                        onFetchCost = { pat, callback ->
-                                            viewModel.fetchCostForPatient(pat, callback)
                                         },
                                         onCancelPayment = { id ->
                                             viewModel.cancelPayment(id)
@@ -343,7 +337,7 @@ fun QueueItem(appointment: Appointment, onClick: () -> Unit) {
                 Text(appointment.symptoms, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                 val statusDisplayText = if (appointment.status == "payment_pending") {
                     if (appointment.payment_amount == null) {
-                        "수납 대기 (EMR 금액 대기)"
+                        "수납 대기 (결제 금액 없음)"
                     } else {
                         val amountFormatted = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(appointment.payment_amount)
                         "수납 대기 (결제 요청: ${amountFormatted}원)"
@@ -413,7 +407,6 @@ fun AppointmentDetailPane(
     patients: List<Patient>,
     payment: Payment?,
     onUpdateAppointmentDetails: (String, String, String?, Int?) -> Unit,
-    onFetchCost: (Patient, (Int?) -> Unit) -> Unit,
     onCancelPayment: (String) -> Unit,
     onGenerateMeetLink: suspend (String) -> Unit,
     onDismiss: () -> Unit
@@ -425,7 +418,6 @@ fun AppointmentDetailPane(
 
     var selectedStatus by remember(appointment.status) { mutableStateOf(appointment.status) }
     var meetLink by remember(appointment.meet_link) { mutableStateOf(appointment.meet_link ?: "") }
-    var paymentAmount by remember(appointment.payment_amount) { mutableStateOf(appointment.payment_amount?.toString() ?: "") }
 
     val isPaymentCompleted = payment?.status == "SUCCESS"
 
@@ -469,7 +461,7 @@ fun AppointmentDetailPane(
                             fontWeight = FontWeight.Bold
                         )
                         val statusDisplayText = if (appointment.status == "payment_pending") {
-                            if (appointment.payment_amount == null) "수납 대기 (EMR 대기)" else "수납 대기 (결제 요청)"
+                            if (appointment.payment_amount == null) "수납 대기" else "수납 대기 (결제 요청)"
                         } else {
                             appointment.statusText
                         }
@@ -633,10 +625,7 @@ fun AppointmentDetailPane(
                         Text("수납 정보", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         val (paymentStatusText, paymentStatusColor) = when {
                             isPaymentCompleted -> "결제 완료" to MaterialTheme.colorScheme.primary
-                            appointment.status == "payment_pending" -> {
-                                if (appointment.payment_amount == null) "EMR 금액 대기" to Color(0xFFE65100)
-                                else "결제 대기 중" to MaterialTheme.colorScheme.error
-                            }
+                            appointment.status == "payment_pending" -> "결제 대기 중" to MaterialTheme.colorScheme.error
                             else -> "결제 미시작" to MaterialTheme.colorScheme.outline
                         }
                         Surface(
@@ -653,31 +642,9 @@ fun AppointmentDetailPane(
                         }
                     }
                     
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = paymentAmount,
-                            onValueChange = { input -> if (input.all { it.isDigit() }) paymentAmount = input },
-                            placeholder = { Text("금액 (원)") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (patient != null) {
-                            Button(
-                                onClick = {
-                                    onFetchCost(patient) { cost ->
-                                        if (cost != null) {
-                                            paymentAmount = cost.toString()
-                                            Toast.makeText(context, "EMR에서 진료비를 불러왔습니다.", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "EMR 진료비를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                },
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("EMR 연동")
-                            }
-                        }
+                    if (appointment.payment_amount != null) {
+                        val amountFormatted = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(appointment.payment_amount)
+                        Text("청구 금액: ${amountFormatted}원", style = MaterialTheme.typography.bodyMedium)
                     }
 
                     if (payment != null) {
@@ -744,8 +711,7 @@ fun AppointmentDetailPane(
                 }
                 Button(
                     onClick = {
-                        val amount = paymentAmount.toIntOrNull()
-                        onUpdateAppointmentDetails(appointment.id!!, selectedStatus, meetLink.ifBlank { null }, amount)
+                        onUpdateAppointmentDetails(appointment.id!!, selectedStatus, meetLink.ifBlank { null }, appointment.payment_amount)
                         Toast.makeText(context, "업데이트되었습니다.", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.weight(2f).height(48.dp),
